@@ -14,7 +14,6 @@ import NewClaim from "./pages/NewClaim";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
-import ErrorBoundary from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -29,18 +28,26 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } />
             <Route path="/claims" element={
-              <ErrorBoundary>
+              <ProtectedRoute>
                 <Claims />
-              </ErrorBoundary>
+              </ProtectedRoute>
             } />
             <Route path="/claims/new" element={
-              <ErrorBoundary>
+              <ProtectedRoute>
                 <NewClaim />
-              </ErrorBoundary>
+              </ProtectedRoute>
             } />
-            <Route path="/employees" element={<Employees />} />
+            <Route path="/employees" element={
+              <ProtectedRoute>
+                <Employees />
+              </ProtectedRoute>
+            } />
             <Route path="/contact" element={<Contact />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="*" element={<NotFound />} />

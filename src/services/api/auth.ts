@@ -1,14 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
+// Define types for authentication
 interface SignUpData {
   email: string;
   password: string;
@@ -18,73 +8,166 @@ interface SignUpData {
   registrationKey: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
+interface Session {
+  user: User;
+  token: string;
+}
+
+interface SignUpResponse {
+  user: User | null;
+  message: string;
+}
+
+const API_URL = import.meta.env.VITE_API_URL || 'https://claims-backends.vercel.app/api';
+
+const defaultFetchOptions: RequestInit = {
+  credentials: 'include',
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+};
 
 export const authApi = {
-  signUp: async (formData: SignUpData) => {
-    const response = await fetch(`${API_URL}/auth/signup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include', // Important for cookies
-      body: JSON.stringify(formData),
-    });
+  signUp: async (formData: SignUpData): Promise<SignUpResponse> => {
+    try {
+      const response = await fetch(`${API_URL}/auth/signup`, {
+        ...defaultFetchOptions,
+        method: 'POST',
+        body: JSON.stringify(formData)
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message);
+      const data = await response.json();
+      
+      // If we get a message but response is not ok, it might be an expected error (like email confirmation needed)
+      if (!response.ok) {
+        if (data.message) {
+          return {
+            user: null,
+            message: data.message
+          };
+        }
+        throw new Error(data.message || 'Signup failed');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Signup error:', error);
+      throw error;
     }
-
-    return response.json();
   },
 
   signIn: async (email: string, password: string) => {
-    const response = await fetch(`${API_URL}/auth/signin`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const response = await fetch(`${API_URL}/auth/signin`, {
+        ...defaultFetchOptions,
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Sign in failed');
+      return data;
+    } catch (error) {
+      console.error('Sign in error:', error);
+      throw error;
     }
-
-    return response.json();
   },
 
   signOut: async () => {
-    const response = await fetch(`${API_URL}/auth/signout`, {
-      method: 'POST',
-      credentials: 'include',
-    });
+    try {
+      const response = await fetch(`${API_URL}/auth/signout`, {
+        ...defaultFetchOptions,
+        method: 'POST'
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message);
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Sign out failed');
+      }
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
     }
   },
 
   getSession: async () => {
-    const response = await fetch(`${API_URL}/auth/session`, {
-      credentials: 'include',
-    });
+    try {
+      const response = await fetch(`${API_URL}/auth/session`, {
+        ...defaultFetchOptions,
+        method: 'GET',
+        headers: {
+          ...defaultFetchOptions.headers,
+        }
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message);
+      if (!response.ok) {
+        return { session: null };
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Session error:', error);
+      return { session: null };
     }
-
-    return response.json();
   },
 
-  onAuthStateChange: (callback: (session: any) => void) => {
-    return supabase.auth.onAuthStateChange((_event, session) => {
-      callback(session);
-    });
+  checkSession: async () => {
+    const { session } = await authApi.getSession();
+    return session;
+  },
+
+  subscribeToAuthChanges: (callback: (session: Session | null) => void) => {
+    // Initial check
+    authApi.checkSession().then(callback);
+
+    // Poll every 5 minutes
+    const intervalId = setInterval(() => {
+      authApi.checkSession().then(callback);
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(intervalId);
+  },
+
+  resetPassword: async (email: string) => {
+    try {
+      const response = await fetch(`${API_URL}/auth/reset-password`, {
+        ...defaultFetchOptions,
+        method: 'POST',
+        body: JSON.stringify({ email })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Password reset failed');
+      return data;
+    } catch (error) {
+      console.error('Password reset error:', error);
+      throw error;
+    }
+  },
+
+  updatePassword: async (newPassword: string) => {
+    try {
+      const response = await fetch(`${API_URL}/auth/update-password`, {
+        ...defaultFetchOptions,
+        method: 'POST',
+        body: JSON.stringify({ password: newPassword })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Password update failed');
+      return data;
+    } catch (error) {
+      console.error('Password update error:', error);
+      throw error;
+    }
   }
 }; 

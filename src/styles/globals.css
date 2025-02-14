@@ -1,0 +1,15 @@
+/* Add required field indicator */
+.required:after {
+  content: " *";
+  color: rgb(239 68 68);
+}
+
+/* Add error state styling */
+.input-error {
+  border-color: rgb(239 68 68);
+}
+
+.input-error:focus {
+  border-color: rgb(239 68 68);
+  ring-color: rgb(239 68 68);
+} 
