@@ -238,7 +238,7 @@ const NewClaim = () => {
         </div>
         <div>
           <Label>Claim Amount</Label>
-          <p className="mt-1">${typeof claimData.claimAmount === 'number' ? 
+          <p className="mt-1">₵{typeof claimData.claimAmount === 'number' ? 
             claimData.claimAmount.toFixed(2) : 
             '0.00'
           }</p>
@@ -362,7 +362,7 @@ const NewClaim = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="claimAmount">Claim Amount ($)</Label>
+                  <Label htmlFor="claimAmount">Claim Amount (₵)</Label>
                   <Input
                     id="claimAmount"
                     name="claimAmount"
@@ -437,7 +437,7 @@ const NewClaim = () => {
               </div>
               <div>
                 <p className="font-medium">Claim Amount</p>
-                <p>${typeof claimData.claimAmount === 'number' ? 
+                <p>₵{typeof claimData.claimAmount === 'number' ? 
                   claimData.claimAmount.toFixed(2) : 
                   '0.00'
                 }</p>

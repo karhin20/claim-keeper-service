@@ -53,10 +53,12 @@ const getStatusColor = (status: string) => {
 
 const ClaimsSummary = ({ claims }: { claims: ClaimDetails[] }) => {
   const totalClaims = claims.length;
-  const pendingClaims = claims.filter(c => c.status === 'pending').length;
-  const approvedClaims = claims.filter(c => c.status === 'approved').length;
-  const rejectedClaims = claims.filter(c => c.status === 'rejected').length;
-  const totalAmount = claims.reduce((sum, claim) => sum + claim.claimAmount, 0);
+  const pendingClaims = claims.filter(c => c?.status === 'pending').length;
+  const approvedClaims = claims.filter(c => c?.status === 'approved').length;
+  const rejectedClaims = claims.filter(c => c?.status === 'rejected').length;
+  const totalAmount = claims.reduce((sum, claim) => 
+    sum + (typeof claim.claimAmount === 'number' ? claim.claimAmount : 0), 
+  0);
 
   return (
     <div className="grid grid-cols-5 gap-4 mb-6">
@@ -78,7 +80,7 @@ const ClaimsSummary = ({ claims }: { claims: ClaimDetails[] }) => {
       </Card>
       <Card className="p-4">
         <h3 className="text-sm font-medium text-gray-500">Total Amount</h3>
-        <p className="text-2xl font-bold">${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+        <p className="text-2xl font-bold">₵{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
       </Card>
     </div>
   );
@@ -106,14 +108,17 @@ const Claims = () => {
   });
 
   const filteredClaims = claims.filter(claim => {
-    const matchesSearch = claim.claimantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      claim.claimantId.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = searchTerm === '' || (
+      (claim.claimantName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (claim.claimantId?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    );
+    
     const matchesStatus = statusFilter === 'all' || claim.status === statusFilter;
     
-    const claimDate = new Date(claim.submitted_at);
+    const claimDate = claim.submitted_at ? new Date(claim.submitted_at) : null;
     const matchesDateRange = 
-      (!dateRange.start || claimDate >= new Date(dateRange.start)) &&
-      (!dateRange.end || claimDate <= new Date(dateRange.end));
+      (!dateRange.start || (claimDate && claimDate >= new Date(dateRange.start))) &&
+      (!dateRange.end || (claimDate && claimDate <= new Date(dateRange.end)));
 
     return matchesSearch && matchesStatus && matchesDateRange;
   });
@@ -332,7 +337,7 @@ const Claims = () => {
         </div>
         <div>
           <h4 className="font-semibold">Claim Amount</h4>
-          <p>${claim.claimAmount.toFixed(2)}</p>
+          <p>₵{claim.claimAmount.toFixed(2)}</p>
         </div>
         <div className="col-span-2">
           <h4 className="font-semibold">Description</h4>
@@ -477,11 +482,11 @@ const Claims = () => {
             ) : (
               paginatedClaims.map((claim) => (
                 <TableRow key={claim.id}>
-                  <TableCell>{claim.claimantName}</TableCell>
-                  <TableCell className="capitalize">{claim.claimType}</TableCell>
-                  <TableCell>${claim.claimAmount.toFixed(2)}</TableCell>
+                  <TableCell>{claim.claimantName || 'N/A'}</TableCell>
+                  <TableCell className="capitalize">{claim.claimType || 'N/A'}</TableCell>
+                  <TableCell>₵{(claim.claimAmount || 0).toFixed(2)}</TableCell>
                   <TableCell>
-                    {format(new Date(claim.submitted_at), 'PP')}
+                    {claim.submitted_at ? format(new Date(claim.submitted_at), 'PP') : 'N/A'}
                   </TableCell>
                   <TableCell>
                     <Badge className={getStatusColor(claim.status || 'pending')}>
