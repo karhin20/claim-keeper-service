@@ -36,6 +36,12 @@ interface ClaimDetails extends ClaimData {
   id: string;
   submitted_at: string;
   updated_at: string;
+  claimant_name?: string;
+  claimant_id?: string;
+  claim_type?: string;
+  claim_amount?: number;
+  incident_date?: string;
+  incident_location?: string;
 }
 
 const getStatusColor = (status: string) => {
@@ -63,7 +69,7 @@ const ClaimsSummary = ({ claims }: { claims: ClaimDetails[] }) => {
   const approvedClaims = claims.filter(c => c?.status === 'approved').length;
   const rejectedClaims = claims.filter(c => c?.status === 'rejected').length;
   const totalAmount = claims.reduce((sum, claim) => 
-    sum + (typeof claim?.claimAmount === 'number' ? claim.claimAmount : 0), 
+    sum + (typeof claim?.claim_amount === 'number' ? claim.claim_amount : 0), 
   0);
 
   return (
@@ -92,7 +98,7 @@ const ClaimsSummary = ({ claims }: { claims: ClaimDetails[] }) => {
   );
 };
 
-type SortField = 'claimantName' | 'claimType' | 'claimAmount' | 'submitted_at' | 'status';
+type SortField = 'claimant_name' | 'claim_type' | 'claim_amount' | 'submitted_at' | 'status';
 
 const Claims = () => {
   const [claims, setClaims] = useState<ClaimDetails[]>([]);
@@ -125,8 +131,8 @@ const Claims = () => {
 
   const filteredClaims = claims.filter(claim => {
     const matchesSearch = searchTerm === '' || (
-      (claim.claimantName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (claim.claimantId?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+      (claim.claimant_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (claim.claimant_id?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
     
     const matchesStatus = statusFilter === 'all' || claim.status === statusFilter;
@@ -148,7 +154,7 @@ const Claims = () => {
   });
 
   const sortedClaims = [...filteredClaims].sort((a, b) => {
-    if (sortField === 'claimAmount') {
+    if (sortField === 'claim_amount') {
       return sortDirection === 'asc' ? a[sortField] - b[sortField] : b[sortField] - a[sortField];
     }
     return sortDirection === 'asc' 
@@ -293,11 +299,11 @@ const Claims = () => {
   const exportToCsv = () => {
     const headers = ['Claimant Name', 'ID', 'Type', 'Amount', 'Status', 'Submitted Date'];
     const csvData = claims.map(claim => [
-      claim.claimantName,
-      claim.claimantId,
-      claim.claimType,
-      claim.claimAmount,
-      claim.status,
+      claim.claimant_name || claim.claimantName || 'N/A',
+      claim.claimant_id || claim.claimantId || 'N/A',
+      claim.claim_type || claim.claimType || 'N/A',
+      claim.claim_amount || claim.claimAmount,
+      claim.status || 'pending',
       new Date(claim.submitted_at).toLocaleDateString()
     ]);
 
@@ -329,11 +335,11 @@ const Claims = () => {
       <div className="grid grid-cols-2 gap-4 py-4">
         <div>
           <h4 className="font-semibold">Claimant Name</h4>
-          <p>{claim.claimantName}</p>
+          <p>{claim.claimant_name || claim.claimantName || 'N/A'}</p>
         </div>
         <div>
           <h4 className="font-semibold">Claimant ID</h4>
-          <p>{claim.claimantId}</p>
+          <p>{claim.claimant_id || claim.claimantId || 'N/A'}</p>
         </div>
         <div>
           <h4 className="font-semibold">Email</h4>
@@ -349,19 +355,19 @@ const Claims = () => {
         </div>
         <div>
           <h4 className="font-semibold">Incident Date</h4>
-          <p>{formatDate(claim.incidentDate)}</p>
+          <p>{formatDate(claim.incident_date || claim.incidentDate)}</p>
         </div>
         <div>
           <h4 className="font-semibold">Incident Location</h4>
-          <p>{claim.incidentLocation}</p>
+          <p>{claim.incident_location || claim.incidentLocation}</p>
         </div>
         <div>
           <h4 className="font-semibold">Claim Type</h4>
-          <p className="capitalize">{claim.claimType}</p>
+          <p className="capitalize">{claim.claim_type || claim.claimType || 'N/A'}</p>
         </div>
         <div>
           <h4 className="font-semibold">Claim Amount</h4>
-          <p>{formatAmount(claim.claimAmount)}</p>
+          <p>{formatAmount(claim.claim_amount || claim.claimAmount)}</p>
         </div>
         <div className="col-span-2">
           <h4 className="font-semibold">Description</h4>
@@ -467,14 +473,14 @@ const Claims = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead onClick={() => toggleSort('claimantName')} className="cursor-pointer">
-                Claimant {sortField === 'claimantName' && (sortDirection === 'asc' ? '↑' : '↓')}
+              <TableHead onClick={() => toggleSort('claimant_name')} className="cursor-pointer">
+                Claimant {sortField === 'claimant_name' && (sortDirection === 'asc' ? '↑' : '↓')}
               </TableHead>
-              <TableHead onClick={() => toggleSort('claimType')} className="cursor-pointer">
-                Type {sortField === 'claimType' && (sortDirection === 'asc' ? '↑' : '↓')}
+              <TableHead onClick={() => toggleSort('claim_type')} className="cursor-pointer">
+                Type {sortField === 'claim_type' && (sortDirection === 'asc' ? '↑' : '↓')}
               </TableHead>
-              <TableHead onClick={() => toggleSort('claimAmount')} className="cursor-pointer">
-                Amount {sortField === 'claimAmount' && (sortDirection === 'asc' ? '↑' : '↓')}
+              <TableHead onClick={() => toggleSort('claim_amount')} className="cursor-pointer">
+                Amount {sortField === 'claim_amount' && (sortDirection === 'asc' ? '↑' : '↓')}
               </TableHead>
               <TableHead onClick={() => toggleSort('submitted_at')} className="cursor-pointer">
                 Submitted Date {sortField === 'submitted_at' && (sortDirection === 'asc' ? '↑' : '↓')}
@@ -506,9 +512,9 @@ const Claims = () => {
             ) : (
               paginatedClaims.map((claim) => (
                 <TableRow key={claim.id}>
-                  <TableCell>{claim.claimantName || 'N/A'}</TableCell>
-                  <TableCell className="capitalize">{claim.claimType || 'N/A'}</TableCell>
-                  <TableCell>{formatAmount(claim.claimAmount)}</TableCell>
+                  <TableCell>{claim.claimant_name || claim.claimantName || 'N/A'}</TableCell>
+                  <TableCell className="capitalize">{claim.claim_type || claim.claimType || 'N/A'}</TableCell>
+                  <TableCell>{formatAmount(claim.claim_amount || claim.claimAmount)}</TableCell>
                   <TableCell>{formatDate(claim.submitted_at)}</TableCell>
                   <TableCell>
                     <Badge className={getStatusColor(claim.status || 'pending')}>
