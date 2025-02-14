@@ -51,13 +51,19 @@ const getStatusColor = (status: string) => {
   }
 };
 
+// Add a helper function to safely format currency
+const formatAmount = (amount: number | null | undefined) => {
+  if (typeof amount !== 'number') return '₵0.00';
+  return `₵${amount.toFixed(2)}`;
+};
+
 const ClaimsSummary = ({ claims }: { claims: ClaimDetails[] }) => {
   const totalClaims = claims.length;
   const pendingClaims = claims.filter(c => c?.status === 'pending').length;
   const approvedClaims = claims.filter(c => c?.status === 'approved').length;
   const rejectedClaims = claims.filter(c => c?.status === 'rejected').length;
   const totalAmount = claims.reduce((sum, claim) => 
-    sum + (typeof claim.claimAmount === 'number' ? claim.claimAmount : 0), 
+    sum + (typeof claim?.claimAmount === 'number' ? claim.claimAmount : 0), 
   0);
 
   return (
@@ -107,6 +113,16 @@ const Claims = () => {
     end: ''
   });
 
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'N/A';
+    try {
+      return format(new Date(dateString), 'PP');
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      return 'Invalid Date';
+    }
+  };
+
   const filteredClaims = claims.filter(claim => {
     const matchesSearch = searchTerm === '' || (
       (claim.claimantName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -115,12 +131,20 @@ const Claims = () => {
     
     const matchesStatus = statusFilter === 'all' || claim.status === statusFilter;
     
-    const claimDate = claim.submitted_at ? new Date(claim.submitted_at) : null;
-    const matchesDateRange = 
-      (!dateRange.start || (claimDate && claimDate >= new Date(dateRange.start))) &&
-      (!dateRange.end || (claimDate && claimDate <= new Date(dateRange.end)));
+    try {
+      const claimDate = claim.submitted_at ? new Date(claim.submitted_at) : null;
+      const startDate = dateRange.start ? new Date(dateRange.start) : null;
+      const endDate = dateRange.end ? new Date(dateRange.end) : null;
+      
+      const matchesDateRange = 
+        (!startDate || (claimDate && claimDate >= startDate)) &&
+        (!endDate || (claimDate && claimDate <= endDate));
 
-    return matchesSearch && matchesStatus && matchesDateRange;
+      return matchesSearch && matchesStatus && matchesDateRange;
+    } catch (error) {
+      console.error('Date filtering error:', error);
+      return matchesSearch && matchesStatus;
+    }
   });
 
   const sortedClaims = [...filteredClaims].sort((a, b) => {
@@ -299,7 +323,7 @@ const Claims = () => {
       <DialogHeader>
         <DialogTitle>Claim Details</DialogTitle>
         <DialogDescription>
-          Submitted on {format(new Date(claim.submitted_at), 'PPP')}
+          Submitted on {formatDate(claim.submitted_at)}
         </DialogDescription>
       </DialogHeader>
       <div className="grid grid-cols-2 gap-4 py-4">
@@ -325,7 +349,7 @@ const Claims = () => {
         </div>
         <div>
           <h4 className="font-semibold">Incident Date</h4>
-          <p>{format(new Date(claim.incidentDate), 'PPP')}</p>
+          <p>{formatDate(claim.incidentDate)}</p>
         </div>
         <div>
           <h4 className="font-semibold">Incident Location</h4>
@@ -337,7 +361,7 @@ const Claims = () => {
         </div>
         <div>
           <h4 className="font-semibold">Claim Amount</h4>
-          <p>₵{claim.claimAmount.toFixed(2)}</p>
+          <p>{formatAmount(claim.claimAmount)}</p>
         </div>
         <div className="col-span-2">
           <h4 className="font-semibold">Description</h4>
@@ -484,10 +508,8 @@ const Claims = () => {
                 <TableRow key={claim.id}>
                   <TableCell>{claim.claimantName || 'N/A'}</TableCell>
                   <TableCell className="capitalize">{claim.claimType || 'N/A'}</TableCell>
-                  <TableCell>₵{(claim.claimAmount || 0).toFixed(2)}</TableCell>
-                  <TableCell>
-                    {claim.submitted_at ? format(new Date(claim.submitted_at), 'PP') : 'N/A'}
-                  </TableCell>
+                  <TableCell>{formatAmount(claim.claimAmount)}</TableCell>
+                  <TableCell>{formatDate(claim.submitted_at)}</TableCell>
                   <TableCell>
                     <Badge className={getStatusColor(claim.status || 'pending')}>
                       {claim.status || 'pending'}
