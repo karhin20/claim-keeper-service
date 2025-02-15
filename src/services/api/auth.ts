@@ -25,7 +25,8 @@ interface SignUpResponse {
   message: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL;
+// Update the API_URL definition to ensure it has a fallback and include /api
+const API_URL = `${import.meta.env.VITE_API_URL}/api`;
 
 const defaultHeaders = {
   'Content-Type': 'application/json',
@@ -63,22 +64,28 @@ const authApi = {
   },
 
   signIn: async (email: string, password: string) => {
-    const response = await fetch(`${API_URL}/auth/signin`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: defaultHeaders,
-      body: JSON.stringify({ 
-        email: email.toLowerCase().trim(),
-        password 
-      })
-    });
+    try {
+      const response = await fetch(`${API_URL}/auth/signin`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: defaultHeaders,
+        body: JSON.stringify({ 
+          email: email.toLowerCase().trim(),
+          password 
+        })
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to sign in');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to sign in');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Sign in error:', error);
+      throw error instanceof Error ? error : new Error('Failed to sign in');
     }
-
-    return response.json();
   },
 
   signOut: async () => {
