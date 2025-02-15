@@ -17,62 +17,97 @@ import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AuthCallback from "./pages/AuthCallback";
+import { useEffect, useState } from 'react';
+import { authApi } from './services/api/auth';
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            
-            {/* Protected routes */}
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/claims" element={
-              <ProtectedRoute>
-                <ErrorBoundary>
-                  <Claims />
-                </ErrorBoundary>
-              </ProtectedRoute>
-            } />
-            <Route path="/claims/new" element={
-              <ProtectedRoute>
-                <ErrorBoundary>
-                  <NewClaim />
-                </ErrorBoundary>
-              </ProtectedRoute>
-            } />
-            <Route path="/employees" element={
-              <ProtectedRoute>
-                <Employees />
-              </ProtectedRoute>
-            } />
-            <Route path="/contact" element={
-              <ProtectedRoute>
-                <Contact />
-              </ProtectedRoute>
-            } />
+const App = () => {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-            {/* Catch all route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+  useEffect(() => {
+    const unsubscribe = authApi.subscribeToAuthChanges((newSession) => {
+      console.log('Auth state changed:', { hasSession: !!newSession });
+      setSession(newSession);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleAuthRedirect = (Component: React.ComponentType) => {
+    if (loading) {
+      return <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin">Loading...</div>
+      </div>;
+    }
+    return session ? <Component /> : <Navigate to="/login" />;
+  };
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<Index />} />
+              <Route 
+                path="/login" 
+                element={session ? <Navigate to="/dashboard" /> : <Login />} 
+              />
+              <Route 
+                path="/signup" 
+                element={session ? <Navigate to="/dashboard" /> : <SignUp />} 
+              />
+              <Route 
+                path="/reset-password" 
+                element={session ? <Navigate to="/dashboard" /> : <ResetPassword />} 
+              />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              
+              {/* Protected routes */}
+              <Route 
+                path="/dashboard" 
+                element={handleAuthRedirect(Dashboard)} 
+              />
+              <Route 
+                path="/claims" 
+                element={handleAuthRedirect(() => (
+                  <ErrorBoundary>
+                    <Claims />
+                  </ErrorBoundary>
+                ))} 
+              />
+              <Route path="/claims/new" element={
+                <ProtectedRoute>
+                  <ErrorBoundary>
+                    <NewClaim />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              } />
+              <Route path="/employees" element={
+                <ProtectedRoute>
+                  <Employees />
+                </ProtectedRoute>
+              } />
+              <Route path="/contact" element={
+                <ProtectedRoute>
+                  <Contact />
+                </ProtectedRoute>
+              } />
+
+              {/* Catch all route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

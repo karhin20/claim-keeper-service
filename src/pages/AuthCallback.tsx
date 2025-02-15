@@ -1,39 +1,31 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import Spinner from '@/components/ui/spinner';
 import { authApi } from '@/services/api/auth';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handleAuthCallback = async () => {
+    const handleCallback = async () => {
       try {
-        const { session } = await authApi.getSession();
-        
+        const session = await authApi.checkSession();
         if (session) {
-          toast.success('Successfully signed in!');
-          navigate('/claims', { replace: true });
+          navigate('/dashboard');
         } else {
-          throw new Error('No session found');
+          navigate('/login');
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error('Auth callback error:', error);
-        toast.error('Failed to complete sign in');
-        navigate('/login', { replace: true });
+        navigate('/login');
       }
     };
 
-    handleAuthCallback();
+    handleCallback();
   }, [navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <Spinner />
-        <p className="mt-4 text-gray-600">Completing sign in...</p>
-      </div>
+      <div className="animate-spin">Authenticating...</div>
     </div>
   );
 };

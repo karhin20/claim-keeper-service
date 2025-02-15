@@ -1,5 +1,18 @@
 import { ClaimData } from "@/types/claim";
 
+interface Claim {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  // Add other claim fields as needed
+}
+
+interface ClaimsStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
 const API_URL = import.meta.env.VITE_API_URL || 'https://claims-backends.vercel.app/api';
 
 const defaultFetchOptions: RequestInit = {
@@ -89,6 +102,46 @@ export const claimsApi = {
       return data;
     } catch (error) {
       console.error('Verify OTP error:', error);
+      throw error;
+    }
+  },
+
+  getStats: async (): Promise<ClaimsStats> => {
+    try {
+      const response = await fetch(`${API_URL}/claims/stats`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch claims stats');
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Error fetching claims stats:', error);
+      throw error;
+    }
+  },
+
+  getRecentActivity: async (): Promise<Claim[]> => {
+    try {
+      const response = await fetch(`${API_URL}/claims/recent`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch recent claims');
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Error fetching recent claims:', error);
       throw error;
     }
   }

@@ -1,4 +1,3 @@
-
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -10,6 +9,9 @@ import {
   Clock,
   XCircle,
 } from "lucide-react";
+import { useEffect, useState } from 'react';
+import { authApi } from '../services/api/auth';
+import { claimsApi } from '../services/api/claims';
 
 const DashboardCard = ({
   title,
@@ -36,6 +38,49 @@ const DashboardCard = ({
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const [userData, setUserData] = useState(null);
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0
+  });
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        const session = await authApi.checkSession();
+        if (!session) {
+          navigate('/login');
+          return;
+        }
+        setUserData(session.user);
+
+        // Fetch claims stats and recent activity
+        const [statsData, recentData] = await Promise.all([
+          claimsApi.getStats(),
+          claimsApi.getRecentActivity()
+        ]);
+
+        setStats(statsData);
+        setRecentActivity(recentData);
+      } catch (error) {
+        console.error('Dashboard data loading error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboardData();
+  }, [navigate]);
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin">Loading...</div>
+    </div>;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 to-secondary/10 p-8">
@@ -43,7 +88,7 @@ const Dashboard = () => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold">Dashboard</h1>
-            <p className="text-gray-600">Welcome back, Admin</p>
+            <p className="text-gray-600">Welcome back, {userData?.name}</p>
           </div>
           <Button onClick={() => navigate("/claims/new")}>
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -54,23 +99,22 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <DashboardCard
             title="Total Claims"
-            value="156"
+            value={stats.total.toString()}
             icon={ClipboardList}
-            trend="+12% this month"
           />
           <DashboardCard
             title="Pending Claims"
-            value="23"
+            value={stats.pending.toString()}
             icon={Clock}
           />
           <DashboardCard
             title="Approved Claims"
-            value="89"
+            value={stats.approved.toString()}
             icon={CheckCircle}
           />
           <DashboardCard
             title="Rejected Claims"
-            value="44"
+            value={stats.rejected.toString()}
             icon={XCircle}
           />
         </div>
@@ -101,8 +145,21 @@ const Dashboard = () => {
           <Card className="p-6 glass-card">
             <h3 className="text-xl font-semibold mb-4">Recent Activity</h3>
             <div className="space-y-4">
-              {/* We'll implement this with real data later */}
-              <p className="text-gray-600">No recent activity</p>
+              {recentActivity.length > 0 ? (
+                recentActivity.map((activity) => (
+                  <div key={activity.id} className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{activity.title}</p>
+                      <p className="text-sm text-gray-600">{activity.status}</p>
+                    </div>
+                    <span className="text-sm text-gray-500">
+                      {new Date(activity.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-600">No recent activity</p>
+              )}
             </div>
           </Card>
         </div>
