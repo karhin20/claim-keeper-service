@@ -35,7 +35,7 @@ const defaultFetchOptions: RequestInit = {
   }
 };
 
-export const authApi = {
+const authApi = {
   signUp: async (formData: SignUpData): Promise<SignUpResponse> => {
     try {
       const response = await fetch(`${API_URL}/auth/signup`, {
@@ -191,4 +191,6 @@ export const authApi = {
       throw error;
     }
   }
-}; 
+};
+
+export { authApi }; 

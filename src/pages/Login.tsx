@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from '@/contexts/AuthContext';
+import { authApi } from '@/services/api/auth';
 import Spinner from "@/components/ui/spinner";
 import {
   Dialog,
