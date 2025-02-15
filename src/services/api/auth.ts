@@ -17,7 +17,7 @@ interface User {
 
 interface Session {
   user: User;
-  token: string;
+  access_token: string;
 }
 
 interface SignUpResponse {
@@ -63,8 +63,9 @@ const authApi = {
     }
   },
 
-  signIn: async (email: string, password: string) => {
+  signIn: async (email: string, password: string): Promise<{ session: Session }> => {
     try {
+      console.log('Attempting sign in for:', email);
       const response = await fetch(`${API_URL}/auth/signin`, {
         method: 'POST',
         credentials: 'include',
@@ -75,12 +76,19 @@ const authApi = {
         })
       });
 
+      const data = await response.json();
+      console.log('Sign in response:', { ok: response.ok, status: response.status });
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to sign in');
+        console.error('Sign in error:', data);
+        throw new Error(data.message || 'Failed to sign in');
       }
 
-      const data = await response.json();
+      if (!data.session || !data.session.access_token || !data.session.user) {
+        console.error('Invalid session data:', data);
+        throw new Error('Invalid session data received');
+      }
+      
       return data;
     } catch (error) {
       console.error('Sign in error:', error);
@@ -100,22 +108,36 @@ const authApi = {
     }
   },
 
-  getSession: async () => {
-    const response = await fetch(`${API_URL}/auth/session`, {
-      credentials: 'include',
-    });
+  getSession: async (): Promise<{ session: Session | null }> => {
+    try {
+      const response = await fetch(`${API_URL}/auth/session`, {
+        credentials: 'include',
+        headers: defaultHeaders
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message);
+      if (!response.ok) {
+        if (response.status === 401) {
+          return { session: null };
+        }
+        throw new Error('Failed to get session');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Get session error:', error);
+      return { session: null };
     }
-
-    return response.json();
   },
 
   checkSession: async () => {
-    const { session } = await authApi.getSession();
-    return session;
+    try {
+      const { session } = await authApi.getSession();
+      return session;
+    } catch (error) {
+      console.error('Check session error:', error);
+      return null;
+    }
   },
 
   subscribeToAuthChanges: (callback: (session: Session | null) => void) => {
