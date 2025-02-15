@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
+import Spinner from "@/components/ui/spinner";
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -129,19 +130,28 @@ const SignUp = () => {
             className="w-full"
             disabled={loading}
           >
-            {loading ? "Creating Account..." : "Create Account"}
+            {loading ? (
+              <div className="flex items-center justify-center gap-2">
+                <Spinner className="h-4 w-4" />
+                <span>Creating Account...</span>
+              </div>
+            ) : (
+              "Create Account"
+            )}
           </Button>
         </form>
 
         <div className="mt-6 text-center text-sm">
-          <span className="text-gray-600">Already have an account? </span>
-          <Button
-            variant="link"
-            className="text-primary hover:underline p-0"
-            onClick={() => navigate('/login')}
-          >
-            Sign In
-          </Button>
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-gray-600">Already have an account?</span>
+            <Button
+              variant="link"
+              className="text-primary hover:underline p-0"
+              onClick={() => navigate('/login')}
+            >
+              Sign In
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

@@ -137,19 +137,21 @@ export const authApi = {
     return () => clearInterval(intervalId);
   },
 
-  resetPassword: async (email: string) => {
+  resetPassword: async (token: string, newPassword: string) => {
     try {
       const response = await fetch(`${API_URL}/auth/reset-password`, {
-        ...defaultFetchOptions,
         method: 'POST',
-        body: JSON.stringify({ email })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, newPassword }),
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Password reset failed');
+      if (!response.ok) throw new Error(data.message);
       return data;
     } catch (error) {
-      console.error('Password reset error:', error);
+      console.error('Reset password error:', error);
       throw error;
     }
   },
@@ -167,6 +169,25 @@ export const authApi = {
       return data;
     } catch (error) {
       console.error('Password update error:', error);
+      throw error;
+    }
+  },
+
+  requestPasswordReset: async (email: string) => {
+    try {
+      const response = await fetch(`${API_URL}/auth/request-reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data;
+    } catch (error) {
+      console.error('Password reset request error:', error);
       throw error;
     }
   }

@@ -19,23 +19,31 @@ interface SignUpData {
   registrationKey: string;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType>({
+  user: null,
+  loading: true,
+  signUp: async () => {},
+  signIn: async () => {},
+  signOut: async () => {},
+});
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check active sessions
-    authApi.getSession()
-      .then(({ session }) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      })
-      .catch(() => {
+    const checkAuth = async () => {
+      try {
+        const session = await authApi.getSession();
+        setUser(session.user);
+      } catch (error) {
         setUser(null);
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+
+    checkAuth();
   }, []);
 
   const signUp = async (formData: SignUpData) => {
@@ -50,17 +58,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await authApi.signOut();
   };
 
-  return (
-    <AuthContext.Provider value={{ user, signUp, signIn, signOut, loading }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = {
+    user,
+    loading,
+    signUp,
+    signIn,
+    signOut,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }; 

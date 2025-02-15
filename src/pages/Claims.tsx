@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Spinner from "@/components/ui/spinner";
 
 interface ClaimDetails extends ClaimData {
   id: string;
@@ -495,8 +496,9 @@ const Claims = () => {
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24">
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                  <div className="flex flex-col items-center justify-center">
+                    <Spinner />
+                    <p className="mt-2 text-sm text-gray-500">Loading claims...</p>
                   </div>
                 </TableCell>
               </TableRow>

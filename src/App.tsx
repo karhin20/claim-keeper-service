@@ -2,8 +2,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
@@ -26,23 +27,44 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Public routes */}
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            
+            {/* Protected routes */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } />
             <Route path="/claims" element={
-              <ErrorBoundary>
-                <Claims />
-              </ErrorBoundary>
+              <ProtectedRoute>
+                <ErrorBoundary>
+                  <Claims />
+                </ErrorBoundary>
+              </ProtectedRoute>
             } />
             <Route path="/claims/new" element={
-              <ErrorBoundary>
-                <NewClaim />
-              </ErrorBoundary>
+              <ProtectedRoute>
+                <ErrorBoundary>
+                  <NewClaim />
+                </ErrorBoundary>
+              </ProtectedRoute>
             } />
-            <Route path="/employees" element={<Employees />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/employees" element={
+              <ProtectedRoute>
+                <Employees />
+              </ProtectedRoute>
+            } />
+            <Route path="/contact" element={
+              <ProtectedRoute>
+                <Contact />
+              </ProtectedRoute>
+            } />
+
+            {/* Catch all route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

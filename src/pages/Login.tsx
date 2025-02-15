@@ -3,14 +3,27 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from '@/contexts/AuthContext';
+import Spinner from "@/components/ui/spinner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signIn } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -21,12 +34,32 @@ const Login = () => {
     setLoading(true);
     try {
       await signIn(formData.email, formData.password);
-      toast.success("Successfully logged in");
-      navigate("/dashboard");
+      const from = location.state?.from?.pathname || "/claims";
+      navigate(from, { replace: true });
     } catch (error: any) {
       toast.error(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail) {
+      toast.error("Please enter your email address");
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      await authApi.requestPasswordReset(resetEmail);
+      toast.success("Password reset instructions sent to your email");
+      setIsResetDialogOpen(false);
+      setResetEmail("");
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -70,15 +103,26 @@ const Login = () => {
             className="w-full"
             disabled={loading}
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? (
+              <div className="flex items-center justify-center gap-2">
+                <Spinner className="h-4 w-4" />
+                <span>Signing in...</span>
+              </div>
+            ) : (
+              "Sign In"
+            )}
           </Button>
         </form>
 
         <div className="mt-6 space-y-4 text-center text-sm">
           <div>
-            <a href="#" className="text-primary hover:underline">
+            <Button 
+              variant="link" 
+              className="text-primary hover:underline"
+              onClick={() => setIsResetDialogOpen(true)}
+            >
               Forgot your password?
-            </a>
+            </Button>
           </div>
           
           <div className="flex items-center justify-center gap-2">
@@ -93,6 +137,49 @@ const Login = () => {
           </div>
         </div>
       </Card>
+
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Enter your email address and we'll send you instructions to reset your password.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="resetEmail">Email</Label>
+              <Input
+                id="resetEmail"
+                type="email"
+                placeholder="Enter your email"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsResetDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isResetting}>
+                {isResetting ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Spinner className="h-4 w-4" />
+                    <span>Sending...</span>
+                  </div>
+                ) : (
+                  "Send Instructions"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
