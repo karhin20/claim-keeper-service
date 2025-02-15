@@ -25,7 +25,7 @@ interface SignUpResponse {
   message: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://claims-backends.vercel.app/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const defaultFetchOptions: RequestInit = {
   credentials: 'include',
@@ -65,59 +65,46 @@ const authApi = {
   },
 
   signIn: async (email: string, password: string) => {
-    try {
-      const response = await fetch(`${API_URL}/auth/signin`, {
-        ...defaultFetchOptions,
-        method: 'POST',
-        body: JSON.stringify({ email, password })
-      });
+    const response = await fetch(`${API_URL}/auth/signin`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Sign in failed');
-      return data;
-    } catch (error) {
-      console.error('Sign in error:', error);
-      throw error;
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message);
     }
+
+    return response.json();
   },
 
   signOut: async () => {
-    try {
-      const response = await fetch(`${API_URL}/auth/signout`, {
-        ...defaultFetchOptions,
-        method: 'POST'
-      });
+    const response = await fetch(`${API_URL}/auth/signout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Sign out failed');
-      }
-    } catch (error) {
-      console.error('Sign out error:', error);
-      throw error;
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message);
     }
   },
 
   getSession: async () => {
-    try {
-      const response = await fetch(`${API_URL}/auth/session`, {
-        ...defaultFetchOptions,
-        method: 'GET',
-        headers: {
-          ...defaultFetchOptions.headers,
-        }
-      });
+    const response = await fetch(`${API_URL}/auth/session`, {
+      credentials: 'include',
+    });
 
-      if (!response.ok) {
-        return { session: null };
-      }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Session error:', error);
-      return { session: null };
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message);
     }
+
+    return response.json();
   },
 
   checkSession: async () => {
@@ -174,22 +161,20 @@ const authApi = {
   },
 
   requestPasswordReset: async (email: string) => {
-    try {
-      const response = await fetch(`${API_URL}/auth/request-reset`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
+    const response = await fetch(`${API_URL}/auth/request-reset`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
-      return data;
-    } catch (error) {
-      console.error('Password reset request error:', error);
-      throw error;
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message);
     }
+
+    return response.json();
   }
 };
 
