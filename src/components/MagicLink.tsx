@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { supabase } from "@/config/supabase";
 import Spinner from "@/components/ui/spinner";
+import { authApi } from '@/services/api/auth';
 
 const MagicLink = () => {
   const [email, setEmail] = useState('');
@@ -16,15 +16,7 @@ const MagicLink = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        }
-      });
-
-      if (error) throw error;
-
+      await authApi.signInWithMagicLink(email);
       setSent(true);
       toast.success('Check your email for the magic link!');
     } catch (error: any) {

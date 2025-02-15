@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/config/supabase';
 import { toast } from 'sonner';
 import Spinner from '@/components/ui/spinner';
+import { authApi } from '@/services/api/auth';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
@@ -10,9 +10,7 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) throw error;
+        const { session } = await authApi.getSession();
         
         if (session) {
           toast.success('Successfully signed in!');

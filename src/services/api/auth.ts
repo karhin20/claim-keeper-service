@@ -27,19 +27,17 @@ interface SignUpResponse {
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-const defaultFetchOptions: RequestInit = {
-  credentials: 'include',
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
+const defaultHeaders = {
+  'Content-Type': 'application/json',
+  'Accept': 'application/json'
 };
 
 const authApi = {
   signUp: async (formData: SignUpData): Promise<SignUpResponse> => {
     try {
       const response = await fetch(`${API_URL}/auth/signup`, {
-        ...defaultFetchOptions,
+        credentials: 'include',
+        headers: defaultHeaders,
         method: 'POST',
         body: JSON.stringify(formData)
       });
@@ -68,15 +66,16 @@ const authApi = {
     const response = await fetch(`${API_URL}/auth/signin`, {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
+      headers: defaultHeaders,
+      body: JSON.stringify({ 
+        email: email.toLowerCase().trim(),
+        password 
+      })
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message);
+      throw new Error(error.message || 'Failed to sign in');
     }
 
     return response.json();
@@ -146,7 +145,8 @@ const authApi = {
   updatePassword: async (newPassword: string) => {
     try {
       const response = await fetch(`${API_URL}/auth/update-password`, {
-        ...defaultFetchOptions,
+        credentials: 'include',
+        headers: defaultHeaders,
         method: 'POST',
         body: JSON.stringify({ password: newPassword })
       });
@@ -175,7 +175,23 @@ const authApi = {
     }
 
     return response.json();
+  },
+
+  signInWithMagicLink: async (email: string) => {
+    const response = await fetch(`${API_URL}/auth/magic-link`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message);
+    }
+
+    return response.json();
   }
 };
-
 export { authApi }; 

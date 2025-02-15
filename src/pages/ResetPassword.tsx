@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { supabase } from "@/config/supabase";
+import { authApi } from "@/services/api/auth";
 import Spinner from "@/components/ui/spinner";
 
 const ResetPassword = () => {
@@ -17,8 +17,12 @@ const ResetPassword = () => {
   useEffect(() => {
     // Check if we have a session
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      try {
+        const session = await authApi.checkSession();
+        if (!session) {
+          navigate('/login');
+        }
+      } catch (error) {
         navigate('/login');
       }
     };
@@ -41,12 +45,7 @@ const ResetPassword = () => {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: password
-      });
-
-      if (error) throw error;
-
+      await authApi.updatePassword(password);
       toast.success("Password updated successfully");
       navigate('/claims');
     } catch (error: any) {
