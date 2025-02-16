@@ -2,8 +2,19 @@ import { ClaimData } from "@/types/claim";
 
 interface Claim {
   id: string;
+  claimant_name: string;
+  claimant_id: string;
+  claim_type: string;
+  claim_amount: number;
   status: 'pending' | 'approved' | 'rejected';
-  // Add other claim fields as needed
+  submitted_at: string;
+  updated_at: string;
+  incident_date: string;
+  incident_location: string;
+  description: string;
+  email: string;
+  phone: string;
+  address: string;
 }
 
 interface ClaimsStats {
@@ -13,13 +24,19 @@ interface ClaimsStats {
   rejected: number;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://claims-backends.vercel.app/api';
+const API_URL = `${import.meta.env.VITE_API_URL}/api` || 'https://claims-backends.vercel.app/api';
 
 const defaultFetchOptions: RequestInit = {
+  credentials: 'include',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
+};
+
+const handleApiError = async (response: Response) => {
+  const error = await response.json();
+  throw new Error(error.message || 'An error occurred');
 };
 
 export const claimsApi = {
@@ -40,16 +57,19 @@ export const claimsApi = {
     }
   },
 
-  getClaims: async () => {
+  getClaims: async (): Promise<Claim[]> => {
     try {
       const response = await fetch(`${API_URL}/claims`, {
         ...defaultFetchOptions,
         method: 'GET'
       });
 
+      if (!response.ok) {
+        throw new Error('Failed to fetch claims');
+      }
+
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to fetch claims');
-      return data;
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('Get claims error:', error);
       throw error;
@@ -109,14 +129,12 @@ export const claimsApi = {
   getStats: async (): Promise<ClaimsStats> => {
     try {
       const response = await fetch(`${API_URL}/claims/stats`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        ...defaultFetchOptions,
+        method: 'GET'
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch claims stats');
+        await handleApiError(response);
       }
 
       return response.json();
@@ -129,14 +147,12 @@ export const claimsApi = {
   getRecentActivity: async (): Promise<Claim[]> => {
     try {
       const response = await fetch(`${API_URL}/claims/recent`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        ...defaultFetchOptions,
+        method: 'GET'
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch recent claims');
+        await handleApiError(response);
       }
 
       return response.json();

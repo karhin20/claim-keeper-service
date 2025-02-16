@@ -26,11 +26,16 @@ interface SignUpResponse {
 }
 
 // Update the API_URL definition to ensure it has a fallback and include /api
-const API_URL = `${import.meta.env.VITE_API_URL}/api`;
+const API_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://claims-backends.vercel.app/api';
 
-const defaultHeaders = {
-  'Content-Type': 'application/json',
-  'Accept': 'application/json'
+const defaultFetchOptions: RequestInit = {
+  credentials: 'include',
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
+  },
+  mode: 'cors'
 };
 
 const authApi = {
@@ -38,7 +43,7 @@ const authApi = {
     try {
       const response = await fetch(`${API_URL}/auth/signup`, {
         credentials: 'include',
-        headers: defaultHeaders,
+        headers: defaultFetchOptions.headers,
         method: 'POST',
         body: JSON.stringify(formData)
       });
@@ -67,9 +72,8 @@ const authApi = {
     try {
       console.log('Attempting sign in for:', email);
       const response = await fetch(`${API_URL}/auth/signin`, {
+        ...defaultFetchOptions,
         method: 'POST',
-        credentials: 'include',
-        headers: defaultHeaders,
         body: JSON.stringify({ 
           email: email.toLowerCase().trim(),
           password 
@@ -111,19 +115,20 @@ const authApi = {
   getSession: async (): Promise<{ session: Session | null }> => {
     try {
       const response = await fetch(`${API_URL}/auth/session`, {
-        credentials: 'include',
-        headers: defaultHeaders
+        ...defaultFetchOptions,
+        method: 'GET',
+        credentials: 'include'
       });
 
       if (!response.ok) {
         if (response.status === 401) {
           return { session: null };
         }
-        throw new Error('Failed to get session');
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to get session');
       }
 
-      const data = await response.json();
-      return data;
+      return response.json();
     } catch (error) {
       console.error('Get session error:', error);
       return { session: null };
@@ -141,15 +146,25 @@ const authApi = {
   },
 
   subscribeToAuthChanges: (callback: (session: Session | null) => void) => {
+    let mounted = true;
+
+    const checkAuth = async () => {
+      if (!mounted) return;
+      const session = await authApi.checkSession();
+      callback(session);
+    };
+
     // Initial check
-    authApi.checkSession().then(callback);
+    checkAuth();
 
     // Poll every 5 minutes
-    const intervalId = setInterval(() => {
-      authApi.checkSession().then(callback);
-    }, 5 * 60 * 1000);
+    const intervalId = setInterval(checkAuth, 5 * 60 * 1000);
 
-    return () => clearInterval(intervalId);
+    // Return cleanup function
+    return () => {
+      mounted = false;
+      clearInterval(intervalId);
+    };
   },
 
   resetPassword: async (token: string, newPassword: string) => {
@@ -175,7 +190,7 @@ const authApi = {
     try {
       const response = await fetch(`${API_URL}/auth/update-password`, {
         credentials: 'include',
-        headers: defaultHeaders,
+        headers: defaultFetchOptions.headers,
         method: 'POST',
         body: JSON.stringify({ password: newPassword })
       });

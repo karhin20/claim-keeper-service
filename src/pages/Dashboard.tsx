@@ -10,8 +10,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from 'react';
-import { authApi } from '../services/api/auth';
 import { claimsApi } from '../services/api/claims';
+import { useAuth } from '@/contexts/AuthContext';
 
 const DashboardCard = ({
   title,
@@ -37,8 +37,8 @@ const DashboardCard = ({
 );
 
 const Dashboard = () => {
+  const { session } = useAuth();
   const navigate = useNavigate();
-  const [userData, setUserData] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -47,39 +47,58 @@ const Dashboard = () => {
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
-        const session = await authApi.checkSession();
+        setError(null);
         if (!session) {
           navigate('/login');
           return;
         }
-        setUserData(session.user);
 
-        // Fetch claims stats and recent activity
+        // These are the calls that trigger the routes
         const [statsData, recentData] = await Promise.all([
-          claimsApi.getStats(),
-          claimsApi.getRecentActivity()
+          claimsApi.getStats(),      // Calls /api/claims/stats
+          claimsApi.getRecentActivity() // Calls /api/claims/recent
         ]);
 
         setStats(statsData);
         setRecentActivity(recentData);
       } catch (error) {
         console.error('Dashboard data loading error:', error);
+        setError(error.message || 'Failed to load dashboard data');
       } finally {
         setLoading(false);
       }
     };
 
     loadDashboardData();
-  }, [navigate]);
+  }, [navigate, session]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin">Loading...</div>
-    </div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="text-blue-600 hover:underline"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -88,7 +107,7 @@ const Dashboard = () => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold">Dashboard</h1>
-            <p className="text-gray-600">Welcome back, {userData?.name}</p>
+            <p className="text-gray-600">Welcome back, {session?.user?.name}</p>
           </div>
           <Button onClick={() => navigate("/claims/new")}>
             <PlusCircle className="mr-2 h-4 w-4" />

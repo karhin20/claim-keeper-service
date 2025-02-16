@@ -1,10 +1,10 @@
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "sonner";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import ProtectedRouteComponent from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
@@ -21,6 +21,25 @@ import { useEffect, useState } from 'react';
 import { authApi } from './services/api/auth';
 
 const queryClient = new QueryClient();
+
+// Create a protected route wrapper component
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { session, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 const App = () => {
   const [session, setSession] = useState(null);
@@ -72,32 +91,41 @@ const App = () => {
               {/* Protected routes */}
               <Route 
                 path="/dashboard" 
-                element={handleAuthRedirect(Dashboard)} 
+                element={
+                  <ProtectedRouteComponent>
+                    <Dashboard />
+                  </ProtectedRouteComponent>
+                } 
               />
               <Route 
                 path="/claims" 
-                element={handleAuthRedirect(() => (
-                  <ErrorBoundary>
-                    <Claims />
-                  </ErrorBoundary>
-                ))} 
+                element={
+                  <ProtectedRouteComponent>
+                    <ErrorBoundary>
+                      <Claims />
+                    </ErrorBoundary>
+                  </ProtectedRouteComponent>
+                } 
               />
-              <Route path="/claims/new" element={
-                <ProtectedRoute>
-                  <ErrorBoundary>
-                    <NewClaim />
-                  </ErrorBoundary>
-                </ProtectedRoute>
-              } />
+              <Route 
+                path="/claims/new" 
+                element={
+                  <ProtectedRouteComponent>
+                    <ErrorBoundary>
+                      <NewClaim />
+                    </ErrorBoundary>
+                  </ProtectedRouteComponent>
+                } 
+              />
               <Route path="/employees" element={
-                <ProtectedRoute>
+                <ProtectedRouteComponent>
                   <Employees />
-                </ProtectedRoute>
+                </ProtectedRouteComponent>
               } />
               <Route path="/contact" element={
-                <ProtectedRoute>
+                <ProtectedRouteComponent>
                   <Contact />
-                </ProtectedRoute>
+                </ProtectedRouteComponent>
               } />
 
               {/* Catch all route */}

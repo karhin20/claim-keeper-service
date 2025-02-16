@@ -19,7 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { claimsApi } from "@/services/api/claims";
 import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
@@ -32,17 +32,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Spinner from "@/components/ui/spinner";
+import { useNavigate } from 'react-router-dom';
+import { PlusCircle, RefreshCcw } from 'lucide-react';
 
-interface ClaimDetails extends ClaimData {
+interface Claim {
   id: string;
+  claimant_name: string;
+  claimant_id: string;
+  claim_type: string;
+  claim_amount: number;
+  status: 'pending' | 'approved' | 'rejected';
   submitted_at: string;
   updated_at: string;
-  claimant_name?: string;
-  claimant_id?: string;
-  claim_type?: string;
-  claim_amount?: number;
-  incident_date?: string;
-  incident_location?: string;
+  incident_date: string;
+  incident_location: string;
+  description: string;
+  email: string;
+  phone: string;
+  address: string;
 }
 
 const getStatusColor = (status: string) => {
@@ -64,7 +71,7 @@ const formatAmount = (amount: number | null | undefined) => {
   return `₵${amount.toFixed(2)}`;
 };
 
-const ClaimsSummary = ({ claims }: { claims: ClaimDetails[] }) => {
+const ClaimsSummary = ({ claims }: { claims: Claim[] }) => {
   const totalClaims = claims.length;
   const pendingClaims = claims.filter(c => c?.status === 'pending').length;
   const approvedClaims = claims.filter(c => c?.status === 'approved').length;
@@ -99,11 +106,12 @@ const ClaimsSummary = ({ claims }: { claims: ClaimDetails[] }) => {
   );
 };
 
-type SortField = 'claimant_name' | 'claim_type' | 'claim_amount' | 'submitted_at' | 'status';
+type SortField = keyof Claim;
 
 const Claims = () => {
-  const [claims, setClaims] = useState<ClaimDetails[]>([]);
-  const [selectedClaim, setSelectedClaim] = useState<ClaimDetails | null>(null);
+  const navigate = useNavigate();
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false);
   const [otpDialogOpen, setOtpDialogOpen] = useState(false);
   const [otpInput, setOtpInput] = useState('');
@@ -165,37 +173,23 @@ const Claims = () => {
 
   const totalPages = Math.ceil(sortedClaims.length / itemsPerPage);
 
+  const fetchClaims = async () => {
+    try {
+      setIsLoading(true);
+      const data = await claimsApi.getClaims();
+      setClaims(Array.isArray(data) ? data : []);
+      toast.success('Claims refreshed successfully');
+    } catch (error) {
+      console.error('Error fetching claims:', error);
+      toast.error('Failed to fetch claims');
+      setClaims([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
-
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        const response = await claimsApi.getClaims();
-        if (mounted) {
-          setClaims(response.claims);
-        }
-      } catch (error) {
-        if (mounted) {
-          console.error('Error fetching claims:', error);
-          toast({
-            title: "Error",
-            description: "Failed to fetch claims.",
-            variant: "destructive",
-          });
-        }
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchData();
-
-    return () => {
-      mounted = false;
-    };
+    fetchClaims();
   }, []);
 
   useEffect(() => {
@@ -325,7 +319,7 @@ const Claims = () => {
     currentPage * itemsPerPage
   );
 
-  const ClaimDetailsDialog = ({ claim }: { claim: ClaimDetails }) => (
+  const ClaimDetailsDialog = ({ claim }: { claim: Claim }) => (
     <DialogContent className="max-w-3xl">
       <DialogHeader>
         <DialogTitle>Claim Details</DialogTitle>
@@ -415,17 +409,20 @@ const Claims = () => {
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Claims Management</h1>
-        <Button 
-          variant="outline" 
-          onClick={() => fetchClaims()}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <span className="animate-spin">↻</span>
-          ) : (
-            "Refresh"
-          )}
-        </Button>
+        <div className="space-x-4">
+          <Button 
+            variant="outline" 
+            onClick={fetchClaims}
+            disabled={isLoading}
+          >
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+          <Button onClick={() => navigate('/claims/new')}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            New Claim
+          </Button>
+        </div>
       </div>
       <ClaimsSummary claims={claims} />
       <Card className="p-6">

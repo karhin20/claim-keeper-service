@@ -3,76 +3,58 @@ import type { User } from '@supabase/supabase-js';
 import { authApi } from '@/services/api/auth';
 
 interface AuthContextType {
-  user: User | null;
-  signUp: (formData: SignUpData) => Promise<void>;
+  session: any;
+  loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  loading: boolean;
 }
 
-interface SignUpData {
-  email: string;
-  password: string;
-  name: string;
-  role: string;
-  phone: string;
-  registrationKey: string;
-}
-
-export const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-  signUp: async () => {},
-  signIn: async () => {},
-  signOut: async () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const session = await authApi.getSession();
-        setUser(session.user);
-      } catch (error) {
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const unsubscribe = authApi.subscribeToAuthChanges((newSession) => {
+      setSession(newSession);
+      setLoading(false);
+    });
 
-    checkAuth();
+    return () => unsubscribe();
   }, []);
 
-  const signUp = async (formData: SignUpData) => {
-    await authApi.signUp(formData);
-  };
-
   const signIn = async (email: string, password: string) => {
-    await authApi.signIn(email, password);
+    try {
+      const { session: newSession } = await authApi.signIn(email, password);
+      setSession(newSession);
+    } catch (error) {
+      console.error('Sign in error:', error);
+      throw error;
+    }
   };
 
   const signOut = async () => {
-    await authApi.signOut();
+    try {
+      await authApi.signOut();
+      setSession(null);
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
   };
 
-  const value = {
-    user,
-    loading,
-    signUp,
-    signIn,
-    signOut,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ session, loading, signIn, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 }; 
