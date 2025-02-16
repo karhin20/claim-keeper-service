@@ -9,6 +9,7 @@ interface ClaimsStats {
   rejected: number;
 }
 
+// Simple fetch options with credentials
 const fetchOptions: RequestInit = {
   credentials: 'include' as RequestCredentials,
   headers: {

@@ -32,9 +32,9 @@ const initialClaimData: ClaimData = {
   email: "",
   phone: "",
   address: "",
-  incident_date: "",
+  incident_date: format(new Date(), 'yyyy-MM-dd'),
   incident_location: "",
-  claim_type: "medical",
+  claim_type: "medical" as const,
   claim_amount: 0,
   description: "",
   supporting_documents: [],
@@ -61,7 +61,9 @@ const NewClaim = () => {
     const { name, value } = e.target;
     setClaimData((prev) => ({
       ...prev,
-      [name]: name === 'claim_amount' ? Number(value) : value,
+      [name]: name === 'claim_amount' ? 
+        (value === '' ? 0 : Number(value)) :
+        value
     }));
   };
 
@@ -340,7 +342,7 @@ const NewClaim = () => {
                     id="incident_date"
                     name="incident_date"
                     type="date"
-                    value={claimData.incident_date}
+                    value={claimData.incident_date || format(new Date(), 'yyyy-MM-dd')}
                     onChange={handleInputChange}
                     required
                   />
@@ -358,7 +360,7 @@ const NewClaim = () => {
                 <div className="space-y-2">
                   <Label htmlFor="claim_type">Claim Type</Label>
                   <Select
-                    value={claimData.claim_type}
+                    value={claimData.claim_type || 'medical'}
                     onValueChange={handleSelectChange}
                   >
                     <SelectTrigger>
@@ -380,7 +382,7 @@ const NewClaim = () => {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={claimData.claim_amount}
+                    value={claimData.claim_amount || 0}
                     onChange={handleInputChange}
                     required
                   />
