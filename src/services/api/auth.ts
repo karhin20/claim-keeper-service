@@ -28,22 +28,19 @@ interface SignUpResponse {
 // Update the API_URL definition to ensure it has a fallback and include /api
 const API_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://claims-backends.vercel.app/api';
 
-const defaultFetchOptions: RequestInit = {
-  credentials: 'include',
+const fetchOptions: RequestInit = {
+  credentials: 'include' as RequestCredentials,
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest'
-  },
-  mode: 'cors'
+    'Accept': 'application/json'
+  }
 };
 
 const authApi = {
   signUp: async (formData: SignUpData): Promise<SignUpResponse> => {
     try {
       const response = await fetch(`${API_URL}/auth/signup`, {
-        credentials: 'include',
-        headers: defaultFetchOptions.headers,
+        ...fetchOptions,
         method: 'POST',
         body: JSON.stringify(formData)
       });
@@ -72,7 +69,7 @@ const authApi = {
     try {
       console.log('Attempting sign in for:', email);
       const response = await fetch(`${API_URL}/auth/signin`, {
-        ...defaultFetchOptions,
+        ...fetchOptions,
         method: 'POST',
         body: JSON.stringify({ 
           email: email.toLowerCase().trim(),
@@ -103,7 +100,7 @@ const authApi = {
   signOut: async () => {
     const response = await fetch(`${API_URL}/auth/signout`, {
       method: 'POST',
-      credentials: 'include',
+      ...fetchOptions,
     });
 
     if (!response.ok) {
@@ -115,7 +112,7 @@ const authApi = {
   getSession: async (): Promise<{ session: Session | null }> => {
     try {
       const response = await fetch(`${API_URL}/auth/session`, {
-        ...defaultFetchOptions,
+        ...fetchOptions,
         method: 'GET',
         credentials: 'include'
       });
@@ -189,8 +186,7 @@ const authApi = {
   updatePassword: async (newPassword: string) => {
     try {
       const response = await fetch(`${API_URL}/auth/update-password`, {
-        credentials: 'include',
-        headers: defaultFetchOptions.headers,
+        ...fetchOptions,
         method: 'POST',
         body: JSON.stringify({ password: newPassword })
       });

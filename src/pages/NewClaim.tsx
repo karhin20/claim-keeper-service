@@ -24,19 +24,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useNavigate } from 'react-router-dom';
 
 const initialClaimData: ClaimData = {
-  claimantName: "",
-  claimantId: "",
+  claimant_name: "",
+  claimant_id: "",
   email: "",
   phone: "",
   address: "",
-  incidentDate: "",
-  incidentLocation: "",
-  claimType: "medical",
-  claimAmount: 0,
+  incident_date: "",
+  incident_location: "",
+  claim_type: "medical",
+  claim_amount: 0,
   description: "",
-  supportingDocuments: [],
+  supporting_documents: [],
 };
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -51,6 +52,8 @@ const NewClaim = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<Partial<Record<keyof ClaimData, string>>>({});
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigate = useNavigate();
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -58,14 +61,14 @@ const NewClaim = () => {
     const { name, value } = e.target;
     setClaimData((prev) => ({
       ...prev,
-      [name]: name === 'claimAmount' ? Number(value) : value,
+      [name]: name === 'claim_amount' ? Number(value) : value,
     }));
   };
 
   const handleSelectChange = (value: string) => {
     setClaimData((prev) => ({
       ...prev,
-      claimType: value as ClaimData["claimType"],
+      claim_type: value as ClaimData["claim_type"],
     }));
   };
 
@@ -98,12 +101,12 @@ const NewClaim = () => {
     const newErrors: Partial<Record<keyof ClaimData, string>> = {};
     
     // Required fields validation
-    if (!claimData.claimantName.trim()) {
-      newErrors.claimantName = 'Claimant name is required';
+    if (!claimData.claimant_name.trim()) {
+      newErrors.claimant_name = 'Claimant name is required';
     }
     
-    if (!claimData.claimantId.trim()) {
-      newErrors.claimantId = 'Claimant ID is required';
+    if (!claimData.claimant_id.trim()) {
+      newErrors.claimant_id = 'Claimant ID is required';
     }
 
     // Email validation
@@ -126,24 +129,24 @@ const NewClaim = () => {
       newErrors.address = 'Address is required';
     }
 
-    if (!claimData.incidentDate) {
-      newErrors.incidentDate = 'Incident date is required';
+    if (!claimData.incident_date) {
+      newErrors.incident_date = 'Incident date is required';
     } else {
-      const date = new Date(claimData.incidentDate);
+      const date = new Date(claimData.incident_date);
       if (isNaN(date.getTime()) || date > new Date()) {
-        newErrors.incidentDate = 'Invalid date or date is in the future';
+        newErrors.incident_date = 'Invalid date or date is in the future';
       }
     }
 
-    if (!claimData.incidentLocation.trim()) {
-      newErrors.incidentLocation = 'Incident location is required';
+    if (!claimData.incident_location.trim()) {
+      newErrors.incident_location = 'Incident location is required';
     }
 
     // Validate claim amount
-    if (typeof claimData.claimAmount !== 'number') {
-      newErrors.claimAmount = 'Claim amount must be a number';
-    } else if (claimData.claimAmount <= 0) {
-      newErrors.claimAmount = 'Claim amount must be greater than 0';
+    if (typeof claimData.claim_amount !== 'number') {
+      newErrors.claim_amount = 'Claim amount must be a number';
+    } else if (claimData.claim_amount <= 0) {
+      newErrors.claim_amount = 'Claim amount must be greater than 0';
     }
 
     if (!claimData.description.trim()) {
@@ -169,29 +172,37 @@ const NewClaim = () => {
     setIsConfirmDialogOpen(true);
   };
 
-  const submitClaim = async () => {
+  const submitClaim = async (data: ClaimData) => {
     try {
-      await claimsApi.submitClaim({
-        ...claimData,
-        submittedAt: new Date().toISOString(),
-        status: 'pending',
+      setIsSubmitting(true);
+      await claimsApi.createClaim({
+        claimant_name: data.claimant_name,
+        claimant_id: data.claimant_id,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        incident_date: data.incident_date,
+        incident_location: data.incident_location,
+        claim_type: data.claim_type,
+        claim_amount: data.claim_amount,
+        description: data.description,
+        supporting_documents: files
       });
 
-      clearDraft();
       toast({
         title: "Success",
-        description: "Your claim has been submitted successfully.",
+        description: "Claim submitted successfully"
       });
-
-      setIsPreviewing(false);
-      setIsConfirmDialogOpen(false);
+      navigate('/claims');
     } catch (error) {
       console.error('Error submitting claim:', error);
       toast({
         title: "Error",
-        description: "Failed to submit claim. Please try again.",
-        variant: "destructive",
+        description: "Failed to submit claim",
+        variant: "destructive"
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -206,11 +217,11 @@ const NewClaim = () => {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label>Claimant Name</Label>
-          <p className="mt-1">{claimData.claimantName}</p>
+          <p className="mt-1">{claimData.claimant_name}</p>
         </div>
         <div>
           <Label>Claimant ID</Label>
-          <p className="mt-1">{claimData.claimantId}</p>
+          <p className="mt-1">{claimData.claimant_id}</p>
         </div>
         <div>
           <Label>Email</Label>
@@ -226,20 +237,20 @@ const NewClaim = () => {
         </div>
         <div>
           <Label>Incident Date</Label>
-          <p className="mt-1">{claimData.incidentDate}</p>
+          <p className="mt-1">{claimData.incident_date}</p>
         </div>
         <div>
           <Label>Incident Location</Label>
-          <p className="mt-1">{claimData.incidentLocation}</p>
+          <p className="mt-1">{claimData.incident_location}</p>
         </div>
         <div>
           <Label>Claim Type</Label>
-          <p className="mt-1 capitalize">{claimData.claimType}</p>
+          <p className="mt-1 capitalize">{claimData.claim_type}</p>
         </div>
         <div>
           <Label>Claim Amount</Label>
-          <p className="mt-1">₵{typeof claimData.claimAmount === 'number' ? 
-            claimData.claimAmount.toFixed(2) : 
+          <p className="mt-1">₵{typeof claimData.claim_amount === 'number' ? 
+            claimData.claim_amount.toFixed(2) : 
             '0.00'
           }</p>
         </div>
@@ -268,25 +279,25 @@ const NewClaim = () => {
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="claimantName" className="required">Claimant Name</Label>
+                  <Label htmlFor="claimant_name" className="required">Claimant Name</Label>
                   <Input
-                    id="claimantName"
-                    name="claimantName"
-                    value={claimData.claimantName}
+                    id="claimant_name"
+                    name="claimant_name"
+                    value={claimData.claimant_name}
                     onChange={handleInputChange}
-                    className={errors.claimantName ? 'border-red-500' : ''}
+                    className={errors.claimant_name ? 'border-red-500' : ''}
                     required
                   />
-                  {errors.claimantName && (
-                    <p className="text-sm text-red-500">{errors.claimantName}</p>
+                  {errors.claimant_name && (
+                    <p className="text-sm text-red-500">{errors.claimant_name}</p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="claimantId">Claimant ID</Label>
+                  <Label htmlFor="claimant_id">Claimant ID</Label>
                   <Input
-                    id="claimantId"
-                    name="claimantId"
-                    value={claimData.claimantId}
+                    id="claimant_id"
+                    name="claimant_id"
+                    value={claimData.claimant_id}
                     onChange={handleInputChange}
                     required
                   />
@@ -324,30 +335,30 @@ const NewClaim = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="incidentDate">Incident Date</Label>
+                  <Label htmlFor="incident_date">Incident Date</Label>
                   <Input
-                    id="incidentDate"
-                    name="incidentDate"
+                    id="incident_date"
+                    name="incident_date"
                     type="date"
-                    value={claimData.incidentDate}
+                    value={claimData.incident_date}
                     onChange={handleInputChange}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="incidentLocation">Incident Location</Label>
+                  <Label htmlFor="incident_location">Incident Location</Label>
                   <Input
-                    id="incidentLocation"
-                    name="incidentLocation"
-                    value={claimData.incidentLocation}
+                    id="incident_location"
+                    name="incident_location"
+                    value={claimData.incident_location}
                     onChange={handleInputChange}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="claimType">Claim Type</Label>
+                  <Label htmlFor="claim_type">Claim Type</Label>
                   <Select
-                    value={claimData.claimType}
+                    value={claimData.claim_type}
                     onValueChange={handleSelectChange}
                   >
                     <SelectTrigger>
@@ -362,14 +373,14 @@ const NewClaim = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="claimAmount">Claim Amount (₵)</Label>
+                  <Label htmlFor="claim_amount">Claim Amount (₵)</Label>
                   <Input
-                    id="claimAmount"
-                    name="claimAmount"
+                    id="claim_amount"
+                    name="claim_amount"
                     type="number"
                     min="0"
                     step="0.01"
-                    value={claimData.claimAmount}
+                    value={claimData.claim_amount}
                     onChange={handleInputChange}
                     required
                   />
@@ -433,12 +444,12 @@ const NewClaim = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="font-medium">Claimant Name</p>
-                <p>{claimData.claimantName}</p>
+                <p>{claimData.claimant_name}</p>
               </div>
               <div>
                 <p className="font-medium">Claim Amount</p>
-                <p>₵{typeof claimData.claimAmount === 'number' ? 
-                  claimData.claimAmount.toFixed(2) : 
+                <p>₵{typeof claimData.claim_amount === 'number' ? 
+                  claimData.claim_amount.toFixed(2) : 
                   '0.00'
                 }</p>
               </div>
@@ -449,7 +460,7 @@ const NewClaim = () => {
             <Button variant="outline" onClick={() => setIsConfirmDialogOpen(false)}>
               Back to Edit
             </Button>
-            <Button onClick={submitClaim}>
+            <Button onClick={() => submitClaim(claimData)}>
               Confirm & Submit
             </Button>
           </DialogFooter>

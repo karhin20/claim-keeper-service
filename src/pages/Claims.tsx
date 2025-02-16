@@ -34,6 +34,7 @@ import {
 import Spinner from "@/components/ui/spinner";
 import { useNavigate } from 'react-router-dom';
 import { PlusCircle, RefreshCcw } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Claim {
   id: string;
@@ -41,7 +42,7 @@ interface Claim {
   claimant_id: string;
   claim_type: string;
   claim_amount: number;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'reviewing';
   submitted_at: string;
   updated_at: string;
   incident_date: string;
@@ -50,6 +51,7 @@ interface Claim {
   email: string;
   phone: string;
   address: string;
+  supporting_documents?: Array<{ name: string }>;
 }
 
 const getStatusColor = (status: string) => {
@@ -110,6 +112,7 @@ type SortField = keyof Claim;
 
 const Claims = () => {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [claims, setClaims] = useState<Claim[]>([]);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false);
@@ -225,22 +228,15 @@ const Claims = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [currentPage, totalPages, sortedClaims.length]);
 
-  const handleStatusUpdate = async (claimId: string, newStatus: string) => {
+  const handleStatusUpdate = async (claimId: string, newStatus: 'pending' | 'approved' | 'rejected' | 'reviewing') => {
     try {
       await claimsApi.updateClaim(claimId, { status: newStatus });
-      toast({
-        title: "Success",
-        description: `Claim ${newStatus} successfully.`,
-      });
-      fetchClaims(); // Refresh claims list
+      toast.success(`Claim ${newStatus} successfully.`);
+      fetchClaims();
       setIsApprovalDialogOpen(false);
     } catch (error) {
       console.error('Error updating claim:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update claim status.",
-        variant: "destructive",
-      });
+      toast.error("Failed to update claim status.");
     }
   };
 
@@ -248,17 +244,10 @@ const Claims = () => {
     try {
       await claimsApi.generateApprovalOTP(claimId);
       setOtpDialogOpen(true);
-      toast({
-        title: "OTP Generated",
-        description: "An OTP has been sent for verification.",
-      });
+      toast.success("OTP has been sent for verification");
     } catch (error) {
       console.error('Error generating OTP:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate OTP.",
-        variant: "destructive",
-      });
+      toast.error("Failed to generate OTP");
     }
   };
 
@@ -267,18 +256,11 @@ const Claims = () => {
       await claimsApi.verifyApprovalOTP(claimId, otpInput);
       setOtpDialogOpen(false);
       setOtpInput('');
-      fetchClaims(); // Refresh claims list
-      toast({
-        title: "Success",
-        description: "Claim approved successfully.",
-      });
+      fetchClaims();
+      toast.success("Claim approved successfully");
     } catch (error) {
       console.error('Error verifying OTP:', error);
-      toast({
-        title: "Error",
-        description: "Invalid OTP. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Invalid OTP. Please try again");
     }
   };
 
@@ -294,11 +276,11 @@ const Claims = () => {
   const exportToCsv = () => {
     const headers = ['Claimant Name', 'ID', 'Type', 'Amount', 'Status', 'Submitted Date'];
     const csvData = claims.map(claim => [
-      claim.claimant_name || claim.claimantName || 'N/A',
-      claim.claimant_id || claim.claimantId || 'N/A',
-      claim.claim_type || claim.claimType || 'N/A',
-      claim.claim_amount || claim.claimAmount,
-      claim.status || 'pending',
+      claim.claimant_name,
+      claim.claimant_id,
+      claim.claim_type,
+      claim.claim_amount,
+      claim.status,
       new Date(claim.submitted_at).toLocaleDateString()
     ]);
 
@@ -330,11 +312,11 @@ const Claims = () => {
       <div className="grid grid-cols-2 gap-4 py-4">
         <div>
           <h4 className="font-semibold">Claimant Name</h4>
-          <p>{claim.claimant_name || claim.claimantName || 'N/A'}</p>
+          <p>{claim.claimant_name}</p>
         </div>
         <div>
           <h4 className="font-semibold">Claimant ID</h4>
-          <p>{claim.claimant_id || claim.claimantId || 'N/A'}</p>
+          <p>{claim.claimant_id}</p>
         </div>
         <div>
           <h4 className="font-semibold">Email</h4>
@@ -350,29 +332,29 @@ const Claims = () => {
         </div>
         <div>
           <h4 className="font-semibold">Incident Date</h4>
-          <p>{formatDate(claim.incident_date || claim.incidentDate)}</p>
+          <p>{formatDate(claim.incident_date)}</p>
         </div>
         <div>
           <h4 className="font-semibold">Incident Location</h4>
-          <p>{claim.incident_location || claim.incidentLocation}</p>
+          <p>{claim.incident_location}</p>
         </div>
         <div>
           <h4 className="font-semibold">Claim Type</h4>
-          <p className="capitalize">{claim.claim_type || claim.claimType || 'N/A'}</p>
+          <p className="capitalize">{claim.claim_type}</p>
         </div>
         <div>
           <h4 className="font-semibold">Claim Amount</h4>
-          <p>{formatAmount(claim.claim_amount || claim.claimAmount)}</p>
+          <p>{formatAmount(claim.claim_amount)}</p>
         </div>
         <div className="col-span-2">
           <h4 className="font-semibold">Description</h4>
           <p>{claim.description}</p>
         </div>
-        {claim.supportingDocuments && claim.supportingDocuments.length > 0 && (
+        {claim.supporting_documents && claim.supporting_documents.length > 0 && (
           <div className="col-span-2">
             <h4 className="font-semibold">Supporting Documents</h4>
             <ul className="list-disc list-inside">
-              {claim.supportingDocuments.map((doc, index) => (
+              {claim.supporting_documents.map((doc, index) => (
                 <li key={index}>{doc.name}</li>
               ))}
             </ul>
@@ -405,6 +387,17 @@ const Claims = () => {
     </DialogContent>
   );
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+      toast.success('Signed out successfully');
+    } catch (error) {
+      console.error('Sign out error:', error);
+      toast.error('Failed to sign out');
+    }
+  };
+
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
@@ -421,6 +414,9 @@ const Claims = () => {
           <Button onClick={() => navigate('/claims/new')}>
             <PlusCircle className="mr-2 h-4 w-4" />
             New Claim
+          </Button>
+          <Button variant="destructive" onClick={handleSignOut}>
+            Sign Out
           </Button>
         </div>
       </div>
@@ -511,13 +507,13 @@ const Claims = () => {
             ) : (
               paginatedClaims.map((claim) => (
                 <TableRow key={claim.id}>
-                  <TableCell>{claim.claimant_name || claim.claimantName || 'N/A'}</TableCell>
-                  <TableCell className="capitalize">{claim.claim_type || claim.claimType || 'N/A'}</TableCell>
-                  <TableCell>{formatAmount(claim.claim_amount || claim.claimAmount)}</TableCell>
+                  <TableCell>{claim.claimant_name}</TableCell>
+                  <TableCell className="capitalize">{claim.claim_type}</TableCell>
+                  <TableCell>{formatAmount(claim.claim_amount)}</TableCell>
                   <TableCell>{formatDate(claim.submitted_at)}</TableCell>
                   <TableCell>
-                    <Badge className={getStatusColor(claim.status || 'pending')}>
-                      {claim.status || 'pending'}
+                    <Badge className={getStatusColor(claim.status)}>
+                      {claim.status}
                     </Badge>
                   </TableCell>
                   <TableCell>

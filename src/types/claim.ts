@@ -1,15 +1,31 @@
 export interface ClaimData {
-  claimantName: string;
-  claimantId: string;
+  claimant_name: string;
+  claimant_id: string;
   email: string;
   phone: string;
   address: string;
-  incidentDate: string;
-  incidentLocation: string;
-  claimType: "medical" | "property" | "vehicle" | "other";
-  claimAmount: number;
+  incident_date: string;
+  incident_location: string;
+  claim_type: "medical" | "property" | "vehicle" | "other";
+  claim_amount: number;
   description: string;
-  supportingDocuments: File[];
-  status?: 'pending' | 'reviewing' | 'approved' | 'rejected';
-  submittedAt?: string;
+  supporting_documents?: File[];
+}
+
+export interface Claim {
+  id: string;
+  claimant_name: string;
+  claimant_id: string;
+  email: string;
+  phone: string;
+  address: string;
+  incident_date: string;
+  incident_location: string;
+  claim_type: string;
+  claim_amount: number;
+  description: string;
+  status: 'pending' | 'approved' | 'rejected' | 'reviewing';
+  submitted_at: string;
+  updated_at: string;
+  supporting_documents?: Array<{ name: string }>;
 } 

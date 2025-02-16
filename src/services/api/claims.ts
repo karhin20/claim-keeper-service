@@ -1,21 +1,6 @@
-import { ClaimData } from "@/types/claim";
+import { Claim } from '@/types/claim';
 
-interface Claim {
-  id: string;
-  claimant_name: string;
-  claimant_id: string;
-  claim_type: string;
-  claim_amount: number;
-  status: 'pending' | 'approved' | 'rejected';
-  submitted_at: string;
-  updated_at: string;
-  incident_date: string;
-  incident_location: string;
-  description: string;
-  email: string;
-  phone: string;
-  address: string;
-}
+const API_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://claims-backends.vercel.app/api';
 
 interface ClaimsStats {
   total: number;
@@ -24,69 +9,69 @@ interface ClaimsStats {
   rejected: number;
 }
 
-const API_URL = `${import.meta.env.VITE_API_URL}/api` || 'https://claims-backends.vercel.app/api';
-
-const defaultFetchOptions: RequestInit = {
-  credentials: 'include',
+const fetchOptions: RequestInit = {
+  credentials: 'include' as RequestCredentials,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 };
 
-const handleApiError = async (response: Response) => {
-  const error = await response.json();
-  throw new Error(error.message || 'An error occurred');
-};
-
 export const claimsApi = {
-  submitClaim: async (claimData: ClaimData) => {
-    try {
-      const response = await fetch(`${API_URL}/claims`, {
-        ...defaultFetchOptions,
-        method: 'POST',
-        body: JSON.stringify(claimData)
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to submit claim');
-      return data;
-    } catch (error) {
-      console.error('Claim submission error:', error);
-      throw error;
-    }
-  },
-
   getClaims: async (): Promise<Claim[]> => {
     try {
       const response = await fetch(`${API_URL}/claims`, {
-        ...defaultFetchOptions,
+        ...fetchOptions,
         method: 'GET'
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch claims');
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to fetch claims');
       }
 
       const data = await response.json();
-      return Array.isArray(data) ? data : [];
+      return data.claims;
     } catch (error) {
       console.error('Get claims error:', error);
       throw error;
     }
   },
 
-  updateClaim: async (claimId: string, updates: Partial<ClaimData>) => {
+  createClaim: async (claimData: Omit<Claim, 'id' | 'status' | 'submitted_at' | 'updated_at'>) => {
     try {
-      const response = await fetch(`${API_URL}/claims/${claimId}`, {
-        ...defaultFetchOptions,
+      const response = await fetch(`${API_URL}/claims`, {
+        ...fetchOptions,
+        method: 'POST',
+        body: JSON.stringify(claimData)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create claim');
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Create claim error:', error);
+      throw error;
+    }
+  },
+
+  updateClaim: async (id: string, updates: Partial<Claim>) => {
+    try {
+      const response = await fetch(`${API_URL}/claims/${id}`, {
+        ...fetchOptions,
         method: 'PUT',
         body: JSON.stringify(updates)
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to update claim');
-      return data;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update claim');
+      }
+
+      return response.json();
     } catch (error) {
       console.error('Update claim error:', error);
       throw error;
@@ -96,13 +81,16 @@ export const claimsApi = {
   generateApprovalOTP: async (claimId: string) => {
     try {
       const response = await fetch(`${API_URL}/claims/${claimId}/generate-otp`, {
-        ...defaultFetchOptions,
+        ...fetchOptions,
         method: 'POST'
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to generate OTP');
-      return data;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to generate OTP');
+      }
+
+      return response.json();
     } catch (error) {
       console.error('Generate OTP error:', error);
       throw error;
@@ -112,14 +100,17 @@ export const claimsApi = {
   verifyApprovalOTP: async (claimId: string, otp: string) => {
     try {
       const response = await fetch(`${API_URL}/claims/${claimId}/verify-otp`, {
-        ...defaultFetchOptions,
+        ...fetchOptions,
         method: 'POST',
         body: JSON.stringify({ otp })
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to verify OTP');
-      return data;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to verify OTP');
+      }
+
+      return response.json();
     } catch (error) {
       console.error('Verify OTP error:', error);
       throw error;
@@ -129,17 +120,18 @@ export const claimsApi = {
   getStats: async (): Promise<ClaimsStats> => {
     try {
       const response = await fetch(`${API_URL}/claims/stats`, {
-        ...defaultFetchOptions,
+        ...fetchOptions,
         method: 'GET'
       });
 
       if (!response.ok) {
-        await handleApiError(response);
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to fetch stats');
       }
 
       return response.json();
     } catch (error) {
-      console.error('Error fetching claims stats:', error);
+      console.error('Get stats error:', error);
       throw error;
     }
   },
@@ -147,17 +139,18 @@ export const claimsApi = {
   getRecentActivity: async (): Promise<Claim[]> => {
     try {
       const response = await fetch(`${API_URL}/claims/recent`, {
-        ...defaultFetchOptions,
+        ...fetchOptions,
         method: 'GET'
       });
 
       if (!response.ok) {
-        await handleApiError(response);
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to fetch recent activity');
       }
 
       return response.json();
     } catch (error) {
-      console.error('Error fetching recent claims:', error);
+      console.error('Get recent activity error:', error);
       throw error;
     }
   }
