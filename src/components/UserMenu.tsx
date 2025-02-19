@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { UserCircle, LogOut, Settings, Key } from "lucide-react";
+import { UserCircle, LogOut, Settings, Key, ClipboardList } from "lucide-react";
 
 export function UserMenu() {
   const { session, signOut } = useAuth();
@@ -37,15 +37,15 @@ export function UserMenu() {
         <DropdownMenuLabel className="font-semibold">My Account</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="hover:bg-gray-100" onClick={() => navigate("/dashboard")}>
-          <Key className="mr-2 h-4 w-4" />
+          <ClipboardList className="mr-2 h-4 w-4" />
           Dashboard
         </DropdownMenuItem>
         <DropdownMenuItem className="hover:bg-gray-100" onClick={() => navigate("/claims")}>
-          <Key className="mr-2 h-4 w-4" />
+          <ClipboardList className="mr-2 h-4 w-4" />
           All Claims
         </DropdownMenuItem>
         <DropdownMenuItem className="hover:bg-gray-100" onClick={() => navigate("/verify-claims")}>
-          <Key className="mr-2 h-4 w-4" />
+          <ClipboardList className="mr-2 h-4 w-4" />
           Verify Claims
         </DropdownMenuItem>
         <DropdownMenuItem className="hover:bg-gray-100" onClick={() => navigate("/settings")}>
@@ -54,7 +54,7 @@ export function UserMenu() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem 
-          className="hover:bg-red-500 text-white" // Change background color on hover
+          className="hover:bg-red-500 text-white"
           onClick={handleSignOut}
         >
           <LogOut className="mr-2 h-4 w-4" />
