@@ -254,8 +254,15 @@ const Claims = () => {
         return;
       }
 
-      console.log('Requesting OTP for claim:', id);  // Debug log
+      // Find the claim by its database ID (UUID)
+      const claim = claims.find(c => c.id === id);
+      if (!claim) {
+        toast.error('Claim not found');
+        return;
+      }
 
+      setSelectedClaim(claim);
+      
       // Send request to backend API using the UUID
       const response = await claimsApi.generateApprovalOTP(id);
       
@@ -265,7 +272,11 @@ const Claims = () => {
       }
     } catch (error) {
       console.error('Error generating OTP:', error);
-      toast.error(error.message || 'Failed to generate verification code');
+      if (error.message?.includes('Authentication')) {
+        navigate('/login');
+      } else {
+        toast.error(error.message || 'Failed to generate verification code');
+      }
     }
   };
 
