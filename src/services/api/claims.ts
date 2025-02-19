@@ -81,7 +81,7 @@ export const claimsApi = {
 
   generateApprovalOTP: async (id: string) => {
     try {
-      const response = await fetch(`${API_URL}/claims/${id}/generate-otp`, {
+      const response = await fetch(`${API_URL}/${id}/generate-otp`, {
         ...fetchOptions,
         method: 'POST'
       });
@@ -100,7 +100,7 @@ export const claimsApi = {
 
   verifyApprovalOTP: async (id: string, otp: string) => {
     try {
-      const response = await fetch(`${API_URL}/claims/${id}/verify-otp`, {
+      const response = await fetch(`${API_URL}/${id}/verify-otp`, {
         ...fetchOptions,
         method: 'POST',
         body: JSON.stringify({ otp })
@@ -141,10 +141,14 @@ export const claimsApi = {
     try {
       const response = await fetch(`${API_URL}/claims/recent`, {
         ...fetchOptions,
-        method: 'GET'
+        method: 'GET',
+        credentials: 'include'
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication required');
+        }
         const error = await response.json();
         throw new Error(error.message || 'Failed to fetch recent activity');
       }
