@@ -12,6 +12,23 @@ import {
 import { useEffect, useState } from 'react';
 import { claimsApi } from '../services/api/claims';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { format } from 'date-fns';
+import Spinner from "@/components/ui/spinner";
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'approved':
+      return 'bg-green-500 hover:bg-green-600';
+    case 'rejected':
+      return 'bg-red-500 hover:bg-red-600';
+    case 'reviewing':
+      return 'bg-yellow-500 hover:bg-yellow-600';
+    default:
+      return 'bg-blue-500 hover:bg-blue-600';
+  }
+};
 
 const DashboardCard = ({
   title,
@@ -37,38 +54,43 @@ const DashboardCard = ({
 );
 
 const Dashboard = () => {
-  const { session } = useAuth();
   const navigate = useNavigate();
-  const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    approved: 0,
-    rejected: 0
-  });
-  const [recentActivity, setRecentActivity] = useState([]);
+  const { session } = useAuth();
+  const [stats, setStats] = useState(null);
+  const [recentActivity, setRecentActivity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
+        setLoading(true);
         setError(null);
+
         if (!session) {
           navigate('/login');
           return;
         }
 
-        // These are the calls that trigger the routes
         const [statsData, recentData] = await Promise.all([
-          claimsApi.getStats(),      // Calls /api/claims/stats
-          claimsApi.getRecentActivity() // Calls /api/claims/recent
+          claimsApi.getStats(),
+          claimsApi.getRecentActivity()
         ]);
+
+        if (!statsData || !recentData) {
+          throw new Error('Failed to load dashboard data');
+        }
 
         setStats(statsData);
         setRecentActivity(recentData);
       } catch (error) {
         console.error('Dashboard data loading error:', error);
         setError(error.message || 'Failed to load dashboard data');
+        if (error.message?.includes('Authentication required')) {
+          navigate('/login');
+        } else {
+          toast.error('Failed to load dashboard data');
+        }
       } finally {
         setLoading(false);
       }
@@ -77,19 +99,26 @@ const Dashboard = () => {
     loadDashboardData();
   }, [navigate, session]);
 
+  if (!session) {
+    return null; // Will redirect in useEffect
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <Spinner className="h-8 w-8" />
+          <p className="text-gray-500">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error || !stats || !recentActivity) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-red-600 mb-4">{error || 'Failed to load dashboard data'}</p>
           <button 
             onClick={() => window.location.reload()} 
             className="text-blue-600 hover:underline"
@@ -164,15 +193,20 @@ const Dashboard = () => {
           <Card className="p-6 glass-card">
             <h3 className="text-xl font-semibold mb-4">Recent Activity</h3>
             <div className="space-y-4">
-              {recentActivity.length > 0 ? (
+              {recentActivity?.length > 0 ? (
                 recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-center justify-between">
+                  <div key={activity.id} className="flex items-center justify-between border-b pb-2">
                     <div>
-                      <p className="font-medium">{activity.title}</p>
-                      <p className="text-sm text-gray-600">{activity.status}</p>
+                      <p className="font-medium">{activity.claimant_name}</p>
+                      <p className="text-sm text-gray-600">
+                        {activity.claim_type} - ₵{activity.claim_amount.toFixed(2)}
+                      </p>
+                      <Badge className={`${getStatusColor(activity.status)}`}>
+                        {activity.status}
+                      </Badge>
                     </div>
                     <span className="text-sm text-gray-500">
-                      {new Date(activity.createdAt).toLocaleDateString()}
+                      {format(new Date(activity.submitted_at), 'MMM d, yyyy')}
                     </span>
                   </div>
                 ))

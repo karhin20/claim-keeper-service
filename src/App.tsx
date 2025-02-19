@@ -19,6 +19,8 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import AuthCallback from "./pages/AuthCallback";
 import { useEffect, useState } from 'react';
 import { authApi } from './services/api/auth';
+import VerifyClaims from "@/pages/VerifyClaims";
+import { Layout } from "@/components/Layout";
 
 const queryClient = new QueryClient();
 
@@ -93,7 +95,9 @@ const App = () => {
                 path="/dashboard" 
                 element={
                   <ProtectedRouteComponent>
-                    <Dashboard />
+                    <Layout>
+                      <Dashboard />
+                    </Layout>
                   </ProtectedRouteComponent>
                 } 
               />
@@ -102,7 +106,9 @@ const App = () => {
                 element={
                   <ProtectedRouteComponent>
                     <ErrorBoundary>
-                      <Claims />
+                      <Layout>
+                        <Claims />
+                      </Layout>
                     </ErrorBoundary>
                   </ProtectedRouteComponent>
                 } 
@@ -127,6 +133,16 @@ const App = () => {
                   <Contact />
                 </ProtectedRouteComponent>
               } />
+              <Route 
+                path="/verify-claims" 
+                element={
+                  <ProtectedRouteComponent>
+                    <Layout>
+                      <VerifyClaims />
+                    </Layout>
+                  </ProtectedRouteComponent>
+                } 
+              />
 
               {/* Catch all route */}
               <Route path="*" element={<NotFound />} />

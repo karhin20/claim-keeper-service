@@ -79,28 +79,41 @@ export const claimsApi = {
     }
   },
 
-  generateApprovalOTP: async (claimId: string) => {
+  generateApprovalOTP: async (id: string) => {
     try {
-      const response = await fetch(`${API_URL}/claims/${claimId}/generate-otp`, {
-        ...fetchOptions,
-        method: 'POST'
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to generate OTP');
+      if (!id) {
+        throw new Error('Claim ID is required');
       }
 
-      return response.json();
+      console.log('Generating OTP for claim:', id);
+      
+      const response = await fetch(`${API_URL}/claims/${id}/generate-otp`, {
+        ...fetchOptions,
+        method: 'POST',
+        credentials: 'include',  // Ensure cookies are sent
+        headers: {
+          ...fetchOptions.headers,
+          'Authorization': `Bearer ${localStorage.getItem('session')}` // If using token auth
+        }
+      });
+
+      const data = await response.json();
+      console.log('OTP generation response:', data);
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to generate OTP');
+      }
+
+      return data;
     } catch (error) {
       console.error('Generate OTP error:', error);
       throw error;
     }
   },
 
-  verifyApprovalOTP: async (claimId: string, otp: string) => {
+  verifyApprovalOTP: async (id: string, otp: string) => {
     try {
-      const response = await fetch(`${API_URL}/claims/${claimId}/verify-otp`, {
+      const response = await fetch(`${API_URL}/claims/${id}/verify-otp`, {
         ...fetchOptions,
         method: 'POST',
         body: JSON.stringify({ otp })
@@ -152,6 +165,23 @@ export const claimsApi = {
       return response.json();
     } catch (error) {
       console.error('Get recent activity error:', error);
+      throw error;
+    }
+  },
+
+  // Debug function to check OTP status (only in development)
+  checkOTPStatus: async (id: string) => {
+    try {
+      const response = await fetch(`${API_URL}/claims/${id}/check-otp`, {
+        ...fetchOptions,
+        method: 'GET'
+      });
+
+      const data = await response.json();
+      console.log('OTP Status:', data);
+      return data;
+    } catch (error) {
+      console.error('Check OTP status error:', error);
       throw error;
     }
   }

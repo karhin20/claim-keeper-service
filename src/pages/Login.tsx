@@ -32,13 +32,13 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     try {
-      await signIn(formData.email, formData.password);
-      const from = location.state?.from?.pathname || "/claims";
-      navigate(from, { replace: true });
-    } catch (error: any) {
-      toast.error(error.message);
+      setLoading(true);
+      await authApi.signIn(formData.email, formData.password);
+      window.location.href = '/dashboard'; // Force full page reload
+    } catch (error) {
+      console.error('Sign in error:', error);
+      toast.error(error.message || 'Failed to sign in');
     } finally {
       setLoading(false);
     }

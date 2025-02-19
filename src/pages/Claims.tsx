@@ -83,26 +83,26 @@ const ClaimsSummary = ({ claims }: { claims: Claim[] }) => {
   0);
 
   return (
-    <div className="grid grid-cols-5 gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
       <Card className="p-4">
         <h3 className="text-sm font-medium text-gray-500">Total Claims</h3>
-        <p className="text-2xl font-bold">{totalClaims}</p>
+        <p className="text-xl md:text-2xl font-bold">{totalClaims}</p>
       </Card>
       <Card className="p-4">
         <h3 className="text-sm font-medium text-gray-500">Pending</h3>
-        <p className="text-2xl font-bold text-blue-600">{pendingClaims}</p>
+        <p className="text-xl md:text-2xl font-bold text-blue-600">{pendingClaims}</p>
       </Card>
       <Card className="p-4">
         <h3 className="text-sm font-medium text-gray-500">Approved</h3>
-        <p className="text-2xl font-bold text-emerald-600">{approvedClaims}</p>
+        <p className="text-xl md:text-2xl font-bold text-emerald-600">{approvedClaims}</p>
       </Card>
       <Card className="p-4">
         <h3 className="text-sm font-medium text-gray-500">Rejected</h3>
-        <p className="text-2xl font-bold text-red-600">{rejectedClaims}</p>
+        <p className="text-xl md:text-2xl font-bold text-red-600">{rejectedClaims}</p>
       </Card>
-      <Card className="p-4">
+      <Card className="col-span-2 md:col-span-1 p-4">
         <h3 className="text-sm font-medium text-gray-500">Total Amount</h3>
-        <p className="text-2xl font-bold">₵{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+        <p className="text-xl md:text-2xl font-bold truncate">₵{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
       </Card>
     </div>
   );
@@ -112,7 +112,7 @@ type SortField = keyof Claim;
 
 const Claims = () => {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, session } = useAuth();
   const [claims, setClaims] = useState<Claim[]>([]);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false);
@@ -228,9 +228,9 @@ const Claims = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [currentPage, totalPages, sortedClaims.length]);
 
-  const handleStatusUpdate = async (claimId: string, newStatus: 'pending' | 'approved' | 'rejected' | 'reviewing') => {
+  const handleStatusUpdate = async (id: string, newStatus: 'pending' | 'approved' | 'rejected' | 'reviewing') => {
     try {
-      await claimsApi.updateClaim(claimId, { status: newStatus });
+      await claimsApi.updateClaim(id, { status: newStatus });
       toast.success(`Claim ${newStatus} successfully.`);
       fetchClaims();
       setIsApprovalDialogOpen(false);
@@ -240,20 +240,38 @@ const Claims = () => {
     }
   };
 
-  const handleApprovalRequest = async (claimId: string) => {
+  const handleApprovalRequest = async (id: string) => {
     try {
-      await claimsApi.generateApprovalOTP(claimId);
-      setOtpDialogOpen(true);
-      toast.success("OTP has been sent for verification");
+      // Ensure we have a valid session and ID
+      if (!session) {
+        toast.error('Authentication required');
+        navigate('/login');
+        return;
+      }
+
+      if (!id || typeof id !== 'string') {
+        toast.error('Invalid claim ID');
+        return;
+      }
+
+      console.log('Requesting OTP for claim:', id);  // Debug log
+
+      // Send request to backend API using the UUID
+      const response = await claimsApi.generateApprovalOTP(id);
+      
+      if (response.message) {
+        toast.success(response.message);
+        setOtpDialogOpen(true);
+      }
     } catch (error) {
       console.error('Error generating OTP:', error);
-      toast.error("Failed to generate OTP");
+      toast.error(error.message || 'Failed to generate verification code');
     }
   };
 
-  const handleOTPVerification = async (claimId: string) => {
+  const handleOTPVerification = async (id: string) => {
     try {
-      await claimsApi.verifyApprovalOTP(claimId, otpInput);
+      await claimsApi.verifyApprovalOTP(id, otpInput);
       setOtpDialogOpen(false);
       setOtpInput('');
       fetchClaims();
@@ -376,7 +394,7 @@ const Claims = () => {
             <Button
               onClick={() => {
                 setSelectedClaim(claim);
-                handleApprovalRequest(claim.id);
+                setIsApprovalDialogOpen(true);
               }}
             >
               Approve
@@ -399,161 +417,163 @@ const Claims = () => {
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Claims Management</h1>
-        <div className="space-x-4">
-          <Button 
-            variant="outline" 
-            onClick={fetchClaims}
-            disabled={isLoading}
-          >
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-          <Button onClick={() => navigate('/claims/new')}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            New Claim
-          </Button>
-          <Button variant="destructive" onClick={handleSignOut}>
-            Sign Out
-          </Button>
-        </div>
-      </div>
-      <ClaimsSummary claims={claims} />
-      <Card className="p-6">
-        <div className="flex justify-between mb-4">
-          <div className="flex gap-4">
-            <div className="flex-1">
+    <div className="container mx-auto px-4 py-8 overflow-x-auto">
+      <Card className="min-w-full">
+        <div className="p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold">Claims</h2>
+              <p className="text-gray-600">Manage and track claims</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button onClick={() => navigate('/claims/new')} className="w-full sm:w-auto">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                New Claim
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={fetchClaims}
+                className="w-full sm:w-auto"
+              >
+                <RefreshCcw className="mr-2 h-4 w-4" />
+                Refresh
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="w-full sm:w-64">
+              <Select
+                value={statusFilter}
+                onValueChange={setStatusFilter}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Claims</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-64">
               <Input
-                placeholder="Search by name or ID..."
+                placeholder="Search claims..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex gap-4">
+            <div className="w-full sm:w-auto flex gap-2">
               <Input
                 type="date"
                 value={dateRange.start}
                 onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                className="w-[180px]"
+                className="w-full sm:w-40"
               />
               <Input
                 type="date"
                 value={dateRange.end}
                 onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                className="w-[180px]"
+                className="w-full sm:w-40"
               />
             </div>
           </div>
-          <Button onClick={exportToCsv}>
-            Export to CSV
-          </Button>
-        </div>
-        <div className="text-xs text-gray-500 mt-1">
-          Press '/' to search • 'Esc' to clear • '←/→' for pagination • 'Ctrl+E' to export
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead onClick={() => toggleSort('claimant_name')} className="cursor-pointer">
-                Claimant {sortField === 'claimant_name' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </TableHead>
-              <TableHead onClick={() => toggleSort('claim_type')} className="cursor-pointer">
-                Type {sortField === 'claim_type' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </TableHead>
-              <TableHead onClick={() => toggleSort('claim_amount')} className="cursor-pointer">
-                Amount {sortField === 'claim_amount' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </TableHead>
-              <TableHead onClick={() => toggleSort('submitted_at')} className="cursor-pointer">
-                Submitted Date {sortField === 'submitted_at' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </TableHead>
-              <TableHead onClick={() => toggleSort('status')} className="cursor-pointer">
-                Status {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
+
+          <ClaimsSummary claims={claims} />
+
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="h-24">
-                  <div className="flex flex-col items-center justify-center">
-                    <Spinner />
-                    <p className="mt-2 text-sm text-gray-500">Loading claims...</p>
-                  </div>
-                </TableCell>
+                <TableHead onClick={() => toggleSort('claimant_name')} className="cursor-pointer">
+                  Claimant {sortField === 'claimant_name' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </TableHead>
+                <TableHead onClick={() => toggleSort('claim_type')} className="cursor-pointer">
+                  Type {sortField === 'claim_type' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </TableHead>
+                <TableHead onClick={() => toggleSort('claim_amount')} className="cursor-pointer">
+                  Amount {sortField === 'claim_amount' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </TableHead>
+                <TableHead onClick={() => toggleSort('submitted_at')} className="cursor-pointer">
+                  Submitted Date {sortField === 'submitted_at' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </TableHead>
+                <TableHead onClick={() => toggleSort('status')} className="cursor-pointer">
+                  Status {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
-            ) : sortedClaims.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  <div className="flex flex-col items-center justify-center text-gray-500">
-                    <p className="text-lg font-medium">No claims found</p>
-                    <p className="text-sm">Try adjusting your search or filter criteria</p>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              paginatedClaims.map((claim) => (
-                <TableRow key={claim.id}>
-                  <TableCell>{claim.claimant_name}</TableCell>
-                  <TableCell className="capitalize">{claim.claim_type}</TableCell>
-                  <TableCell>{formatAmount(claim.claim_amount)}</TableCell>
-                  <TableCell>{formatDate(claim.submitted_at)}</TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(claim.status)}>
-                      {claim.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <ClaimDetailsDialog claim={claim} />
-                    </Dialog>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24">
+                    <div className="flex flex-col items-center justify-center">
+                      <Spinner />
+                      <p className="mt-2 text-sm text-gray-500">Loading claims...</p>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-        <div className="flex justify-between items-center mt-4">
-          <div className="text-sm text-gray-500">
-            Showing {Math.min(sortedClaims.length, (currentPage - 1) * itemsPerPage + 1)} to{' '}
-            {Math.min(sortedClaims.length, currentPage * itemsPerPage)} of{' '}
-            {sortedClaims.length} claims
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Next
-            </Button>
+              ) : sortedClaims.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center">
+                    <div className="flex flex-col items-center justify-center text-gray-500">
+                      <p className="text-lg font-medium">No claims found</p>
+                      <p className="text-sm">Try adjusting your search or filter criteria</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginatedClaims.map((claim) => (
+                  <TableRow key={claim.id}>
+                    <TableCell>{claim.claimant_name}</TableCell>
+                    <TableCell className="capitalize">{claim.claim_type}</TableCell>
+                    <TableCell>{formatAmount(claim.claim_amount)}</TableCell>
+                    <TableCell>{formatDate(claim.submitted_at)}</TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(claim.status)}>
+                        {claim.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            View Details
+                          </Button>
+                        </DialogTrigger>
+                        <ClaimDetailsDialog claim={claim} />
+                      </Dialog>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          <div className="flex justify-between items-center mt-4">
+            <div className="text-sm text-gray-500">
+              Showing {Math.min(sortedClaims.length, (currentPage - 1) * itemsPerPage + 1)} to{' '}
+              {Math.min(sortedClaims.length, currentPage * itemsPerPage)} of{' '}
+              {sortedClaims.length} claims
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </div>
       </Card>
@@ -563,7 +583,7 @@ const Claims = () => {
           <DialogHeader>
             <DialogTitle>Approve Claim</DialogTitle>
             <DialogDescription>
-              Are you sure you want to approve this claim? This action cannot be undone.
+              A verification code will be sent to the claimant's contact details.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -574,9 +594,16 @@ const Claims = () => {
               Cancel
             </Button>
             <Button
-              onClick={() => selectedClaim && handleStatusUpdate(selectedClaim.id, 'approved')}
+              onClick={() => {
+                if (selectedClaim?.id) {
+                  handleApprovalRequest(selectedClaim.id);
+                  setIsApprovalDialogOpen(false);
+                } else {
+                  toast.error('No claim selected');
+                }
+              }}
             >
-              Confirm Approval
+              Send Verification Code
             </Button>
           </DialogFooter>
         </DialogContent>
