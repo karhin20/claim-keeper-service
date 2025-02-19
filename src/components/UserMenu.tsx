@@ -15,6 +15,16 @@ export function UserMenu() {
   const { session, signOut } = useAuth();
   const navigate = useNavigate();
 
+  const handleSignOut = async () => {
+    try {
+      await signOut(); // Ensure signOut is awaited if it returns a promise
+      navigate('/login'); // Redirect to login after signing out
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Optionally, show a toast or alert for the error
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -43,7 +53,10 @@ export function UserMenu() {
           Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="hover:bg-gray-100" onClick={signOut}>
+        <DropdownMenuItem 
+          className="hover:bg-red-500 text-white" // Change background color on hover
+          onClick={handleSignOut}
+        >
           <LogOut className="mr-2 h-4 w-4" />
           Sign out
         </DropdownMenuItem>
