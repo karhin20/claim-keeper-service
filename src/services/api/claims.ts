@@ -148,10 +148,16 @@ export const claimsApi = {
 
   getRecentActivity: async (): Promise<Claim[]> => {
     try {
+      console.log('Fetching recent activity from:', `${API_URL}/claims/recent`);
       const response = await fetch(`${API_URL}/claims/recent`, {
         ...fetchOptions,
-        method: 'GET'
+        method: 'GET',
+        credentials: 'include'
       });
+
+      // Log response details for debugging
+      console.log('Recent activity response status:', response.status);
+      console.log('Recent activity response headers:', Object.fromEntries(response.headers));
 
       if (!response.ok) {
         const error = await response.json();
