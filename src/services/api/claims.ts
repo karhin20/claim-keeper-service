@@ -9,22 +9,31 @@ interface ClaimsStats {
   rejected: number;
 }
 
-// Simple fetch options with credentials
+// Enhanced fetch options with explicit cookie handling
 const fetchOptions: RequestInit = {
-  credentials: 'include' as RequestCredentials,
+  credentials: 'include',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
-  }
+  },
+  // Ensure cookies are sent even in cross-origin requests
+  mode: 'cors',
+  // Add cache control to prevent caching of auth responses
+  cache: 'no-cache'
 };
 
 export const claimsApi = {
   getClaims: async (): Promise<Claim[]> => {
     try {
+      console.log('Fetching claims from:', `${API_URL}/claims`);
       const response = await fetch(`${API_URL}/claims`, {
         ...fetchOptions,
         method: 'GET'
       });
+
+      // Log response details for debugging
+      console.log('Claims response status:', response.status);
+      console.log('Claims response headers:', Object.fromEntries(response.headers));
 
       if (!response.ok) {
         const error = await response.json();
@@ -141,14 +150,10 @@ export const claimsApi = {
     try {
       const response = await fetch(`${API_URL}/claims/recent`, {
         ...fetchOptions,
-        method: 'GET',
-        credentials: 'include'
+        method: 'GET'
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Authentication required');
-        }
         const error = await response.json();
         throw new Error(error.message || 'Failed to fetch recent activity');
       }
