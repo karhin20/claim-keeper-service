@@ -50,14 +50,20 @@ export const claimsApi = {
 
   createClaim: async (claimData: Omit<Claim, 'id' | 'status' | 'submitted_at' | 'updated_at'>) => {
     try {
+      console.log('Sending claim data to API:', claimData);
+      console.log('API URL:', `${API_URL}/claims`);
+      
       const response = await fetch(`${API_URL}/claims`, {
         ...fetchOptions,
         method: 'POST',
         body: JSON.stringify(claimData)
       });
 
+      console.log('Claim submission response:', response.status, response.statusText);
+      
       if (!response.ok) {
         const error = await response.json();
+        console.error('API error response:', error);
         throw new Error(error.message || 'Failed to create claim');
       }
 
