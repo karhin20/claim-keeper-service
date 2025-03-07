@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { UserCircle, LogOut, Settings, Key, ClipboardList } from "lucide-react";
+import { UserCircle, LogOut, Settings, ClipboardList } from "lucide-react";
 
 export function UserMenu() {
   const { session, signOut } = useAuth();
@@ -54,10 +54,10 @@ export function UserMenu() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem 
-          className="hover:bg-red-500 text-white"
+          className="hover:bg-red-500 text-red-500"
           onClick={handleSignOut}
         >
-          <LogOut className="mr-2 h-4 w-4" />
+          <LogOut className="mr-2 h-4 w-4 text-red-500" />
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>

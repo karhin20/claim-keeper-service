@@ -90,7 +90,7 @@ export const claimsApi = {
 
   generateApprovalOTP: async (id: string) => {
     try {
-      const response = await fetch(`${API_URL}/${id}/generate-otp`, {
+      const response = await fetch(`${API_URL}/claims/${id}/generate-otp`, {
         ...fetchOptions,
         method: 'POST'
       });
@@ -109,7 +109,7 @@ export const claimsApi = {
 
   verifyApprovalOTP: async (id: string, otp: string) => {
     try {
-      const response = await fetch(`${API_URL}/${id}/verify-otp`, {
+      const response = await fetch(`${API_URL}/claims/${id}/verify-otp`, {
         ...fetchOptions,
         method: 'POST',
         body: JSON.stringify({ otp })
@@ -148,16 +148,10 @@ export const claimsApi = {
 
   getRecentActivity: async (): Promise<Claim[]> => {
     try {
-      console.log('Fetching recent activity from:', `${API_URL}/claims/recent`);
       const response = await fetch(`${API_URL}/claims/recent`, {
         ...fetchOptions,
-        method: 'GET',
-        credentials: 'include'
+        method: 'GET'
       });
-
-      // Log response details for debugging
-      console.log('Recent activity response status:', response.status);
-      console.log('Recent activity response headers:', Object.fromEntries(response.headers));
 
       if (!response.ok) {
         const error = await response.json();
