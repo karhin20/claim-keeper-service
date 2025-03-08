@@ -2,7 +2,7 @@ import { Toaster } from "sonner";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Index from "./pages/Index";
@@ -25,9 +25,49 @@ import Spinner from "@/components/ui/spinner";
 
 const queryClient = new QueryClient();
 
+// Add this component to detect logout
+function AuthStateManager() {
+  const { setSession } = useAuth();
+  const location = useLocation();
+  
+  useEffect(() => {
+    // Check if user has just logged out
+    const justLoggedOut = sessionStorage.getItem('justLoggedOut') === 'true' || 
+                          new URLSearchParams(location.search).get('logout') === 'true';
+    
+    if (justLoggedOut) {
+      console.log('User just logged out, preventing auto-login');
+      // Clear the session in context
+      setSession(null);
+      
+      // Clear any auth persistence
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      sessionStorage.removeItem('auth');
+      
+      // Remove the flag after using it
+      sessionStorage.removeItem('justLoggedOut');
+      
+      // We could also remove the URL param if needed using history.replace()
+    }
+  }, [location, setSession]);
+  
+  return null; // This component doesn't render anything
+}
+
 // Create a routing guard component with loop prevention
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
+  const location = useLocation();
+  
+  // Don't redirect to login if we're already on the login page or just logged out
+  const justLoggedOut = sessionStorage.getItem('justLoggedOut') === 'true' || 
+                        new URLSearchParams(location.search).get('logout') === 'true';
+  
+  if (justLoggedOut) {
+    sessionStorage.removeItem('justLoggedOut'); // Clean up
+    return <Navigate to="/login" replace />;
+  }
   
   // Add a key "authenticated" to prevent re-renders when auth state doesn't change
   return loading ? (
@@ -44,6 +84,16 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function PublicOnly({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
+  const location = useLocation();
+  
+  // Don't redirect to dashboard if user just logged out
+  const justLoggedOut = sessionStorage.getItem('justLoggedOut') === 'true' || 
+                        new URLSearchParams(location.search).get('logout') === 'true';
+  
+  if (justLoggedOut) {
+    sessionStorage.removeItem('justLoggedOut'); // Clean up
+    return children;
+  }
   
   // Don't redirect while checking auth
   if (loading) {
@@ -63,6 +113,17 @@ const App = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check if user has just logged out before subscribing to auth changes
+    const justLoggedOut = sessionStorage.getItem('justLoggedOut') === 'true' || 
+                          new URLSearchParams(window.location.search).get('logout') === 'true';
+    
+    if (justLoggedOut) {
+      console.log('User just logged out, preventing auth check');
+      setSession(null);
+      setLoading(false);
+      return;
+    }
+    
     const unsubscribe = authApi.subscribeToAuthChanges((newSession) => {
       console.log('Auth state changed:', { hasSession: !!newSession });
       setSession(newSession);
@@ -83,11 +144,12 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
+      <BrowserRouter>
+        <AuthProvider>
+          <AuthStateManager />
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
             <Routes>
               {/* Public routes */}
               <Route path="/" element={<Index />} />
@@ -133,7 +195,7 @@ const App = () => {
                 } 
               />
               <Route 
-                path="/claims/new" 
+                path="/new-claim" 
                 element={
                   <ProtectedRoute>
                     <ErrorBoundary>
@@ -166,9 +228,9 @@ const App = () => {
               {/* Catch all route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
+          </TooltipProvider>
+        </AuthProvider>
+      </BrowserRouter>
     </QueryClientProvider>
   );
 };

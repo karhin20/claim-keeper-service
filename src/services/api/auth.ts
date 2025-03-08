@@ -48,19 +48,28 @@ const fetchOptions: RequestInit = {
 const authApi = {
   signUp: async (data: SignUpData): Promise<any> => {
     try {
+      console.log("SignUp API call with:", data);
+      
       const response = await fetch(`${API_URL}/auth/signup`, {
-        ...fetchOptions,
+        credentials: 'include',
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify(data)
       });
       
+      const responseData = await response.json();
+      console.log("SignUp response:", responseData);
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to sign up');
+        throw new Error(responseData.message || 'Failed to sign up');
       }
 
-      return await response.json();
+      return responseData;
     } catch (error) {
+      console.error('SignUp API error:', error);
       throw error;
     }
   },
@@ -84,7 +93,7 @@ const authApi = {
     }
   },
 
-  signOut: async (): Promise<void> => {
+  signOut: async () => {
     try {
       const response = await fetch(`${API_URL}/auth/signout`, {
         ...fetchOptions,
@@ -95,7 +104,26 @@ const authApi = {
         const error = await response.json();
         throw new Error(error.message || 'Failed to sign out');
       }
+
+      // Clear all auth-related storage
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      sessionStorage.removeItem('auth');
+      
+      // Clear all cookies by setting their expiration to past
+      document.cookie.split(";").forEach(function(c) {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      
+      // Set logout flag
+      sessionStorage.setItem('justLoggedOut', 'true');
+      
+      // Reload the page to completely reset the app state
+      window.location.href = '/login?logout=true';
+      
+      return { success: true };
     } catch (error) {
+      console.error('Sign out error:', error);
       throw error;
     }
   },
@@ -145,6 +173,16 @@ const authApi = {
 
     const checkAuth = async () => {
       if (!mounted) return;
+      
+      // Skip auth check if user just logged out
+      const justLoggedOut = sessionStorage.getItem('justLoggedOut') === 'true' || 
+                           new URLSearchParams(window.location.search).get('logout') === 'true';
+      
+      if (justLoggedOut) {
+        callback(null); // Force null session
+        return;
+      }
+      
       const session = await authApi.checkSession();
       callback(session);
     };

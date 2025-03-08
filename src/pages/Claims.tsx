@@ -350,7 +350,7 @@ const Claims = () => {
         toast.success("Verification code resent", {
           description: `Development OTP: ${response.otp}`
         });
-      } else {
+    } else {
         toast.success("Verification code resent to claimant");
       }
     } catch (error: any) {
@@ -461,14 +461,14 @@ const Claims = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h1 className="text-3xl font-bold">Claims Management</h1>
         <div className="flex flex-wrap gap-2">
-          <Button 
-            variant="outline" 
-            onClick={fetchClaims}
+              <Button 
+                variant="outline" 
+                onClick={fetchClaims}
             className="flex items-center gap-2"
-          >
+              >
             <RefreshCcw size={16} />
-            Refresh
-          </Button>
+                Refresh
+              </Button>
           <Button 
             onClick={() => navigate('/new-claim')}
             className="flex items-center gap-2"
@@ -498,31 +498,31 @@ const Claims = () => {
           </div>
           <div className="w-full md:w-48">
             <Label htmlFor="status-filter" className="sr-only">Filter by Status</Label>
-            <Select
-              value={statusFilter}
-              onValueChange={setStatusFilter}
-            >
+              <Select
+                value={statusFilter}
+                onValueChange={setStatusFilter}
+              >
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Claims</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Claims</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="reviewing">Reviewing</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
                 <SelectItem value="confirmed">Confirmed</SelectItem>
                 <SelectItem value="payment_pending">Payment Processing</SelectItem>
                 <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            </div>
 
         {loading ? (
           <div className="flex justify-center items-center p-12">
             <Spinner size="lg" />
-          </div>
+            </div>
         ) : filteredClaims.length === 0 ? (
           <div className="text-center p-12">
             <p className="text-gray-500">No claims found</p>
@@ -686,13 +686,13 @@ const Claims = () => {
                 )}
                 {selectedClaim.status === 'approved' && (
                   <div className="flex flex-col sm:flex-row gap-2 w-full">
-                    <Button
-                      variant="outline"
+            <Button
+              variant="outline"
                       onClick={() => handleResendOTP(selectedClaim.id)}
-                    >
+            >
                       Resend OTP
-                    </Button>
-                    <Button
+            </Button>
+            <Button
                       onClick={() => handleVerifyClaim(selectedClaim.id)}
                     >
                       Verify OTP
@@ -711,9 +711,9 @@ const Claims = () => {
                     onClick={() => handleMarkAsPaid(selectedClaim.id)}
                   >
                     Mark as Paid
-                  </Button>
+            </Button>
                 )}
-              </DialogFooter>
+          </DialogFooter>
             </>
           )}
         </DialogContent>

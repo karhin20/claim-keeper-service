@@ -172,6 +172,32 @@ const SimplePieChart = ({ data }: { data: any[] }) => {
   );
 };
 
+const TypeBarChart = ({ data }: { data: any[] }) => (
+  <div className="flex flex-col space-y-4">
+    {data.map((item, index) => (
+      <div key={index} className="flex flex-col">
+        <div className="flex justify-between mb-1">
+          <span className="text-sm font-medium">{item.name}</span>
+          <span className="text-sm font-medium">₵{item.amount.toLocaleString()}</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div 
+            className="h-2.5 rounded-full" 
+            style={{ 
+              width: `${(item.amount / data.reduce((sum, d) => sum + d.amount, 0)) * 100}%`,
+              backgroundColor: item.color 
+            }}
+          ></div>
+        </div>
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <span>{item.count} claims</span>
+          <span>{Math.round((item.amount / data.reduce((sum, d) => sum + d.amount, 0)) * 100)}%</span>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 const Dashboard = () => {
   const [stats, setStats] = useState<ClaimStats>({
     total: 0,
@@ -191,15 +217,17 @@ const Dashboard = () => {
   // Add state for chart data
   const [statusChartData, setStatusChartData] = useState<any[]>([]);
   const [amountChartData, setAmountChartData] = useState<any[]>([]);
+  const [typeChartData, setTypeChartData] = useState<any[]>([]);
 
   // Memoize the fetchData function to prevent infinite loops
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       
-      const [statsData, recentData] = await Promise.all([
+      const [statsData, recentData, claimsData] = await Promise.all([
         claimsApi.getStats(),
-        claimsApi.getRecentActivity()
+        claimsApi.getRecentActivity(),
+        claimsApi.getClaims() // Get all claims to analyze by type
       ]);
       
       setStats(statsData);
@@ -222,6 +250,44 @@ const Dashboard = () => {
         amount: claim.claim_amount
       }));
       setAmountChartData(amountData);
+      
+      // Prepare data for claims by type chart
+      const typeMap = new Map();
+      let totalAmount = 0;
+      
+      // Check if claimsData is actually an array before using forEach
+      if (Array.isArray(claimsData)) {
+        claimsData.forEach(claim => {
+          const type = claim.claim_type || 'Other';
+          const amount = claim.claim_amount || 0;
+          
+          if (!typeMap.has(type)) {
+            typeMap.set(type, { count: 0, amount: 0 });
+          }
+          
+          const current = typeMap.get(type);
+          typeMap.set(type, {
+            count: current.count + 1,
+            amount: current.amount + amount
+          });
+          
+          totalAmount += amount;
+        });
+      } else {
+        console.warn('Claims data is not an array:', claimsData);
+      }
+      
+      const typeData = Array.from(typeMap.entries()).map(([type, data], index) => ({
+        name: type,
+        count: data.count,
+        amount: data.amount,
+        color: [
+          '#3b82f6', '#ef4444', '#10b981', '#f59e0b', 
+          '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'
+        ][index % 8]
+      }));
+      
+      setTypeChartData(typeData);
       
     } catch (error) {
       console.error("Failed to load dashboard data:", error);
@@ -274,7 +340,8 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      {/* Stats summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
         <Card className="p-4">
           <div className="flex flex-col">
             <span className="text-sm text-gray-500">Total Claims</span>
@@ -321,23 +388,8 @@ const Dashboard = () => {
         </Card>
       </div>
 
+      {/* Recent Activity and Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <Card className="p-4">
-          <h2 className="text-xl font-semibold mb-4">Claims by Status</h2>
-          <div className="h-64">
-            <SimplePieChart data={statusChartData} />
-          </div>
-        </Card>
-        
-        <Card className="p-4">
-          <h2 className="text-xl font-semibold mb-4">Recent Claim Amounts</h2>
-          <div className="h-64">
-            <SimpleBarChart data={amountChartData} />
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <div className="p-4 border-b">
             <h2 className="text-xl font-semibold">Recent Activity</h2>
@@ -404,6 +456,32 @@ const Dashboard = () => {
                 </Button>
               </div>
             </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Analytics section - moved below quick actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-4">
+          <h2 className="text-xl font-semibold mb-4">Claims by Status</h2>
+          <div className="h-64">
+            <SimplePieChart data={statusChartData} />
+          </div>
+        </Card>
+        
+        <Card className="p-4">
+          <h2 className="text-xl font-semibold mb-4">Recent Claim Amounts</h2>
+          <div className="h-64">
+            <SimpleBarChart data={amountChartData} />
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 mt-6">
+        <Card className="p-4">
+          <h2 className="text-xl font-semibold mb-4">Claims by Type & Amount</h2>
+          <div className="h-64 overflow-y-auto">
+            <TypeBarChart data={typeChartData} />
           </div>
         </Card>
       </div>

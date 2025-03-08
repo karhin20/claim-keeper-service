@@ -36,7 +36,9 @@ export const claimsApi = {
       }
 
       const data = await response.json();
-      return data;
+      
+      // Ensure we always return an array
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error("Failed to fetch claims:", error);
       // Return empty array on error

@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/dialog";
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
+import Spinner from "@/components/ui/spinner";
 
 const initialClaimData: ClaimData = {
   claimant_name: "",
@@ -331,6 +333,11 @@ const NewClaim = () => {
     </div>
   );
 
+  const handleCancel = () => {
+    // Navigate back to the previous page
+    navigate(-1);
+  };
+
   return (
     <div className="container mx-auto p-6">
       <h1 className="text-2xl font-bold mb-6">Create New Claim</h1>
@@ -467,32 +474,6 @@ const NewClaim = () => {
                   />
                 </div>
               </div>
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  onClick={() => {
-                    // Run validation
-                    const isValid = validateForm();
-                    
-                    // Log for debugging
-                    console.log('Validation result:', isValid, 'Errors:', errors);
-                    
-                    if (isValid) {
-                      setIsPreviewing(true);
-                    } else {
-                      // Display only the first error for clarity
-                      const firstError = Object.values(errors)[0];
-                      toast({
-                        title: "Validation Error",
-                        description: firstError || "Please fill in all required fields correctly before previewing.",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                >
-                  Preview
-                </Button>
-              </div>
             </>
           ) : (
             <>
@@ -505,15 +486,57 @@ const NewClaim = () => {
                 >
                   Edit
                 </Button>
-                <Button 
-                  onClick={() => submitClaim(claimData)} 
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Submitting...' : 'Confirm & Submit'}
-                </Button>
               </div>
             </>
           )}
+          <div className="flex justify-between mt-6">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleCancel}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft size={16} />
+              Cancel
+            </Button>
+            
+            <Button 
+              type={isPreviewing ? "button" : "button"}
+              onClick={isPreviewing 
+                ? () => submitClaim(claimData) 
+                : () => {
+                    // Run validation before previewing
+                    const isValid = validateForm();
+                    
+                    if (isValid) {
+                      setIsPreviewing(true);
+                    } else {
+                      // Display only the first error for clarity
+                      const firstError = Object.values(errors)[0];
+                      toast({
+                        title: "Validation Error",
+                        description: firstError || "Please fill in all required fields correctly before previewing.",
+                        variant: "destructive",
+                      });
+                    }
+                  }
+              }
+              disabled={isSubmitting}
+              className="flex items-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <CheckCircle size={16} />
+                  {isPreviewing ? "Submit Claim" : "Preview"}
+                </>
+              )}
+            </Button>
+          </div>
         </form>
       </Card>
       <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>

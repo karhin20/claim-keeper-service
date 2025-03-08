@@ -1,13 +1,15 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { authApi } from '@/services/api/auth';
+import { toast } from 'sonner';
 
 interface AuthContextType {
   session: any;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  signUp: (formData: SignUpData) => Promise<void>; // Add signUp function
+  signUp: (formData: SignUpData) => Promise<void>;
+  setSession: (session: any) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -15,6 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
 
   // Use useCallback to ensure stable function references
   const signIn = useCallback(async (email: string, password: string) => {
@@ -31,26 +34,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  const signOut = useCallback(async () => {
+  const handleSignOut = async () => {
     try {
       setLoading(true);
-      await authApi.signOut();
-      // Use a function updater to avoid stale closures
+      
+      // First clear the session state in the context
       setSession(null);
+      setUser(null);
+      
+      // Then call the API to sign out, which will handle the redirection
+      await authApi.signOut();
     } catch (error) {
-      console.error('Sign out error:', error);
-      throw error;
+      console.error('Error signing out:', error);
+      toast.error('Failed to sign out');
+      
+      // If the API call fails, we'll still want to redirect
+      window.location.href = '/login';
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   const signUp = useCallback(async (formData: SignUpData) => {
     try {
       setLoading(true);
-      await authApi.signUp(formData);
+      console.log("AuthContext signUp called with:", formData);
+      const result = await authApi.signUp(formData);
+      console.log("SignUp result:", result);
+      return result;
     } catch (error) {
-      console.error('Sign up error:', error);
+      console.error('Sign up error in context:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -89,8 +102,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     session,
     loading,
     signIn,
-    signOut,
-    signUp // Add signUp to context value
+    signOut: handleSignOut,
+    signUp,
+    setSession
   };
 
   return (
