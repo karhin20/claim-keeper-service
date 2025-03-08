@@ -191,7 +191,13 @@ export const claimsApi = {
         throw new Error('Failed to fetch stats');
       }
 
-      return await response.json();
+      const data = await response.json();
+      
+      // Ensure totalAmount is always defined
+      return {
+        ...data,
+        totalAmount: data.totalAmount || 0
+      };
     } catch (error) {
       // Return default stats on error
       return {

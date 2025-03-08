@@ -314,7 +314,9 @@ const Dashboard = () => {
         <Card className="p-4">
           <div className="flex flex-col">
             <span className="text-sm text-gray-500">Total Amount</span>
-            <span className="text-2xl font-bold">₵{stats.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+            <span className="text-2xl font-bold">
+              ₵{(stats.totalAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </span>
           </div>
         </Card>
       </div>
