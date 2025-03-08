@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import ProtectedRouteComponent from "@/components/ProtectedRoute";
+import ProtectedRoute from '@/components/ProtectedRoute';
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
@@ -21,27 +21,42 @@ import { useEffect, useState } from 'react';
 import { authApi } from './services/api/auth';
 import VerifyClaims from "@/pages/VerifyClaims";
 import { Layout } from "@/components/Layout";
+import Spinner from "@/components/ui/spinner";
 
 const queryClient = new QueryClient();
 
-// Create a protected route wrapper component
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+// Create a routing guard component with loop prevention
+function RequireAuth({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
+  
+  // Add a key "authenticated" to prevent re-renders when auth state doesn't change
+  return loading ? (
+    <div className="min-h-screen flex items-center justify-center">
+      <Spinner />
+    </div>
+  ) : session ? (
+    children
+  ) : (
+    // Use replace to prevent adding to history
+    <Navigate to="/login" replace />
+  );
+}
 
+function PublicOnly({ children }: { children: React.ReactNode }) {
+  const { session, loading } = useAuth();
+  
+  // Don't redirect while checking auth
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin">Loading...</div>
+        <Spinner />
       </div>
     );
   }
-
-  if (!session) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return <>{children}</>;
-};
+  
+  // If already authenticated, redirect to dashboard
+  return !session ? children : <Navigate to="/dashboard" replace />;
+}
 
 const App = () => {
   const [session, setSession] = useState(null);
@@ -78,7 +93,11 @@ const App = () => {
               <Route path="/" element={<Index />} />
               <Route 
                 path="/login" 
-                element={session ? <Navigate to="/dashboard" /> : <Login />} 
+                element={
+                  <PublicOnly>
+                    <Login />
+                  </PublicOnly>
+                } 
               />
               <Route 
                 path="/signup" 
@@ -94,53 +113,53 @@ const App = () => {
               <Route 
                 path="/dashboard" 
                 element={
-                  <ProtectedRouteComponent>
+                  <RequireAuth>
                     <Layout>
                       <Dashboard />
                     </Layout>
-                  </ProtectedRouteComponent>
+                  </RequireAuth>
                 } 
               />
               <Route 
                 path="/claims" 
                 element={
-                  <ProtectedRouteComponent>
+                  <ProtectedRoute requiredRole="admin">
                     <ErrorBoundary>
                       <Layout>
                         <Claims />
                       </Layout>
                     </ErrorBoundary>
-                  </ProtectedRouteComponent>
+                  </ProtectedRoute>
                 } 
               />
               <Route 
                 path="/claims/new" 
                 element={
-                  <ProtectedRouteComponent>
+                  <ProtectedRoute>
                     <ErrorBoundary>
                       <NewClaim />
                     </ErrorBoundary>
-                  </ProtectedRouteComponent>
+                  </ProtectedRoute>
                 } 
               />
               <Route path="/employees" element={
-                <ProtectedRouteComponent>
+                <ProtectedRoute>
                   <Employees />
-                </ProtectedRouteComponent>
+                </ProtectedRoute>
               } />
               <Route path="/contact" element={
-                <ProtectedRouteComponent>
+                <ProtectedRoute>
                   <Contact />
-                </ProtectedRouteComponent>
+                </ProtectedRoute>
               } />
               <Route 
                 path="/verify-claims" 
                 element={
-                  <ProtectedRouteComponent>
+                  <ProtectedRoute>
                     <Layout>
                       <VerifyClaims />
                     </Layout>
-                  </ProtectedRouteComponent>
+                  </ProtectedRoute>
                 } 
               />
 

@@ -1,13 +1,15 @@
-import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { Navigate, useLocation } from 'react-router-dom';
 import Spinner from '@/components/ui/spinner';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  requiredRole?: string;
 }
 
-const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const { session, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -17,8 +19,8 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  if (!session) {
-    return <Navigate to="/login" />;
+  if (!session || (requiredRole && session.user.role !== requiredRole)) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
   return <>{children}</>;

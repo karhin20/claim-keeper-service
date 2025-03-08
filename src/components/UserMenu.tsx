@@ -17,11 +17,15 @@ export function UserMenu() {
 
   const handleSignOut = async () => {
     try {
-      await signOut(); // Ensure signOut is awaited if it returns a promise
-      navigate('/login'); // Redirect to login after signing out
+      // First perform the sign-out operation
+      await signOut();
+      
+      // Then navigate to the root route
+      // Using replace to avoid navigation history issues
+      navigate('/', { replace: true });
     } catch (error) {
       console.error('Sign out error:', error);
-      // Optionally, show a toast or alert for the error
+      // Show an error message if sign-out fails
     }
   };
 
@@ -54,10 +58,10 @@ export function UserMenu() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem 
-          className="hover:bg-red-500 text-red-500"
+          className="hover:bg-red-100 text-red-600 hover:text-red-700"
           onClick={handleSignOut}
         >
-          <LogOut className="mr-2 h-4 w-4 text-red-500" />
+          <LogOut className="mr-2 h-4 w-4" />
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>

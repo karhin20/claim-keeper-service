@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import Spinner from "@/components/ui/spinner";
+import { authApi } from '@/services/api/auth';
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -18,31 +19,40 @@ const SignUp = () => {
     email: '',
     password: '',
     name: '',
-    role: '',
+    role: 'admin',
     phone: '',
     registrationKey: ''
   });
+
+  const [passwordFocus, setPasswordFocus] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await signUp(formData);
+      await authApi.signUp(formData);
       toast({
-        title: "Success",
-        description: "Account created successfully. Please check your email for verification.",
+        title: "Registration successful!",
+        description: "Please check your email to confirm your registration.",
       });
       navigate('/login');
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
+        title: "Sign-up failed",
+        description: error.message || "Please try again.",
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
   };
+
+  // Check password strength
+  const hasUpperCase = /[A-Z]/.test(formData.password);
+  const hasLowerCase = /[a-z]/.test(formData.password);
+  const hasNumbers = /\d/.test(formData.password);
+  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password);
+  const isLongEnough = formData.password.length >= 8;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10">
@@ -54,17 +64,16 @@ const SignUp = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="registrationKey">Registration Key</Label>
+            <Label htmlFor="name">Name</Label>
             <Input
-              id="registrationKey"
-              type="password"
-              placeholder="Enter registration key"
-              value={formData.registrationKey}
-              onChange={(e) => setFormData({...formData, registrationKey: e.target.value})}
+              id="name"
+              type="text"
+              placeholder="Enter your name"
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
               required
             />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -76,7 +85,6 @@ const SignUp = () => {
               required
             />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input
@@ -85,22 +93,31 @@ const SignUp = () => {
               placeholder="Enter your password"
               value={formData.password}
               onChange={(e) => setFormData({...formData, password: e.target.value})}
+              onFocus={() => setPasswordFocus(true)}
+              onBlur={() => setPasswordFocus(false)}
               required
             />
+            {passwordFocus && (
+              <div className="text-xs space-y-1 mt-2 p-2 bg-gray-50 rounded border">
+                <p className="font-medium">Password must have:</p>
+                <p className={isLongEnough ? "text-green-600" : "text-gray-500"}>
+                  ✓ At least 8 characters
+                </p>
+                <p className={hasUpperCase ? "text-green-600" : "text-gray-500"}>
+                  ✓ At least one uppercase letter
+                </p>
+                <p className={hasLowerCase ? "text-green-600" : "text-gray-500"}>
+                  ✓ At least one lowercase letter
+                </p>
+                <p className={hasNumbers ? "text-green-600" : "text-gray-500"}>
+                  ✓ At least one number
+                </p>
+                <p className={hasSpecialChar ? "text-green-600" : "text-gray-500"}>
+                  ✓ At least one special character
+                </p>
+              </div>
+            )}
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="Enter your full name"
-              value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
-              required
-            />
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="role">Role</Label>
             <Input
@@ -112,50 +129,37 @@ const SignUp = () => {
               required
             />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
             <Input
               id="phone"
-              type="tel"
+              type="text"
               placeholder="Enter your phone number"
               value={formData.phone}
               onChange={(e) => setFormData({...formData, phone: e.target.value})}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="registrationKey">Registration Key</Label>
+            <Input
+              id="registrationKey"
+              type="password"
+              placeholder="Enter registration key"
+              value={formData.registrationKey}
+              onChange={(e) => setFormData({...formData, registrationKey: e.target.value})}
               required
             />
           </div>
-
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={loading}
+          <Button 
+            type="submit" 
+            disabled={loading || !isLongEnough || !hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar}
           >
-            {loading ? (
-              <div className="flex items-center justify-center gap-2">
-                <Spinner className="h-4 w-4" />
-                <span>Creating Account...</span>
-              </div>
-            ) : (
-              "Create Account"
-            )}
+            {loading ? <Spinner /> : "Sign Up"}
           </Button>
         </form>
-
-        <div className="mt-6 text-center text-sm">
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-gray-600">Already have an account?</span>
-            <Button
-              variant="link"
-              className="text-primary hover:underline p-0"
-              onClick={() => navigate('/login')}
-            >
-              Sign In
-            </Button>
-          </div>
-        </div>
       </Card>
     </div>
   );
 };
 
-export default SignUp; 
+export default SignUp;

@@ -28,84 +28,75 @@ interface SignUpResponse {
 // Update the API_URL definition to ensure it has a fallback and include /api
 const API_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://claims-backends.vercel.app/api';
 
+// Define types for auth requests
+export interface SignInData {
+  email: string;
+  password: string;
+}
+
+// Enhanced fetch options with explicit cookie handling
 const fetchOptions: RequestInit = {
-  credentials: 'include' as RequestCredentials,
+  credentials: 'include',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
-  }
+  },
+  mode: 'cors',
+  cache: 'no-cache'
 };
 
 const authApi = {
-  signUp: async (formData: SignUpData): Promise<SignUpResponse> => {
+  signUp: async (data: SignUpData): Promise<any> => {
     try {
       const response = await fetch(`${API_URL}/auth/signup`, {
         ...fetchOptions,
         method: 'POST',
-        body: JSON.stringify(formData)
+        body: JSON.stringify(data)
       });
-
-      const data = await response.json();
       
-      // If we get a message but response is not ok, it might be an expected error (like email confirmation needed)
       if (!response.ok) {
-        if (data.message) {
-          return {
-            user: null,
-            message: data.message
-          };
-        }
-        throw new Error(data.message || 'Signup failed');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to sign up');
       }
 
-      return data;
+      return await response.json();
     } catch (error) {
-      console.error('Signup error:', error);
       throw error;
     }
   },
 
-  signIn: async (email: string, password: string): Promise<{ session: Session }> => {
+  signIn: async (email: string, password: string): Promise<any> => {
     try {
-      console.log('Attempting sign in for:', email);
       const response = await fetch(`${API_URL}/auth/signin`, {
         ...fetchOptions,
         method: 'POST',
-        body: JSON.stringify({ 
-          email: email.toLowerCase().trim(),
-          password 
-        })
+        body: JSON.stringify({ email, password })
       });
 
-      const data = await response.json();
-      console.log('Sign in response:', { ok: response.ok, status: response.status });
-
       if (!response.ok) {
-        console.error('Sign in error:', data);
-        throw new Error(data.message || 'Failed to sign in');
+        const error = await response.json();
+        throw new Error(error.message || 'Authentication failed');
       }
 
-      if (!data.session || !data.session.access_token || !data.session.user) {
-        console.error('Invalid session data:', data);
-        throw new Error('Invalid session data received');
-      }
-      
-      return data;
+      return await response.json();
     } catch (error) {
-      console.error('Sign in error:', error);
-      throw error instanceof Error ? error : new Error('Failed to sign in');
+      throw error;
     }
   },
 
-  signOut: async () => {
-    const response = await fetch(`${API_URL}/auth/signout`, {
-      method: 'POST',
-      ...fetchOptions,
-    });
+  signOut: async (): Promise<void> => {
+    try {
+      const response = await fetch(`${API_URL}/auth/signout`, {
+        ...fetchOptions,
+        method: 'POST'
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to sign out');
+      }
+    } catch (error) {
+      throw error;
     }
   },
 
@@ -127,17 +118,24 @@ const authApi = {
 
       return response.json();
     } catch (error) {
-      console.error('Get session error:', error);
       return { session: null };
     }
   },
 
-  checkSession: async () => {
+  checkSession: async (): Promise<any> => {
     try {
-      const { session } = await authApi.getSession();
-      return session;
+      const response = await fetch(`${API_URL}/auth/session`, {
+        ...fetchOptions,
+        method: 'GET'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to check session');
+      }
+
+      const data = await response.json();
+      return data.session;
     } catch (error) {
-      console.error('Check session error:', error);
       return null;
     }
   },
@@ -178,7 +176,6 @@ const authApi = {
       if (!response.ok) throw new Error(data.message);
       return data;
     } catch (error) {
-      console.error('Reset password error:', error);
       throw error;
     }
   },
@@ -195,7 +192,6 @@ const authApi = {
       if (!response.ok) throw new Error(data.message || 'Password update failed');
       return data;
     } catch (error) {
-      console.error('Password update error:', error);
       throw error;
     }
   },

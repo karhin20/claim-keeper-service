@@ -59,6 +59,16 @@ const NewClaim = () => {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
+    
+    // Clear the error for this field as soon as user starts typing
+    if (errors[name as keyof ClaimData]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name as keyof ClaimData];
+        return newErrors;
+      });
+    }
+    
     setClaimData((prev) => ({
       ...prev,
       [name]: name === 'claim_amount' ? 
@@ -68,6 +78,15 @@ const NewClaim = () => {
   };
 
   const handleSelectChange = (value: string) => {
+    // Clear error for claim_type if it exists
+    if (errors.claim_type) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.claim_type;
+        return newErrors;
+      });
+    }
+    
     setClaimData((prev) => ({
       ...prev,
       claim_type: value as ClaimData["claim_type"],
@@ -75,6 +94,15 @@ const NewClaim = () => {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Clear supporting_documents error if it exists
+    if (errors.supporting_documents) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.supporting_documents;
+        return newErrors;
+      });
+    }
+    
     const selectedFiles = Array.from(e.target.files || []);
     const validFiles = selectedFiles.filter(file => {
       if (file.size > MAX_FILE_SIZE) {
@@ -101,62 +129,79 @@ const NewClaim = () => {
 
   const validateForm = () => {
     const newErrors: Partial<Record<keyof ClaimData, string>> = {};
+    let isValid = true;
     
     // Required fields validation
     if (!claimData.claimant_name.trim()) {
       newErrors.claimant_name = 'Claimant name is required';
+      isValid = false;
     }
     
     if (!claimData.claimant_id.trim()) {
       newErrors.claimant_id = 'Claimant ID is required';
+      isValid = false;
     }
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!claimData.email.trim()) {
       newErrors.email = 'Email is required';
+      isValid = false;
     } else if (!emailRegex.test(claimData.email)) {
       newErrors.email = 'Invalid email format';
+      isValid = false;
     }
 
     // Phone validation
     const phoneRegex = /^\+?[\d\s-]{10,}$/;
     if (!claimData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
+      isValid = false;
     } else if (!phoneRegex.test(claimData.phone)) {
       newErrors.phone = 'Invalid phone number format';
+      isValid = false;
     }
 
     if (!claimData.address.trim()) {
       newErrors.address = 'Address is required';
+      isValid = false;
     }
 
     if (!claimData.incident_date) {
       newErrors.incident_date = 'Incident date is required';
+      isValid = false;
     } else {
       const date = new Date(claimData.incident_date);
       if (isNaN(date.getTime()) || date > new Date()) {
         newErrors.incident_date = 'Invalid date or date is in the future';
+        isValid = false;
       }
     }
 
     if (!claimData.incident_location.trim()) {
       newErrors.incident_location = 'Incident location is required';
+      isValid = false;
     }
 
     // Validate claim amount
     if (typeof claimData.claim_amount !== 'number') {
       newErrors.claim_amount = 'Claim amount must be a number';
+      isValid = false;
     } else if (claimData.claim_amount <= 0) {
       newErrors.claim_amount = 'Claim amount must be greater than 0';
+      isValid = false;
     }
 
     if (!claimData.description.trim()) {
       newErrors.description = 'Description is required';
+      isValid = false;
     }
 
+    // Set the errors state
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    
+    // Return validation result
+    return isValid;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -177,7 +222,14 @@ const NewClaim = () => {
   const submitClaim = async (data: ClaimData) => {
     try {
       setIsSubmitting(true);
-      await claimsApi.createClaim({
+      
+      console.log('Submitting claim with files:', files.length);
+      
+      // Create a new FormData instance
+      const formData = new FormData();
+      
+      // Clone the data object without files
+      const claimDataForSubmission = {
         claimant_name: data.claimant_name,
         claimant_id: data.claimant_id,
         email: data.email,
@@ -189,22 +241,29 @@ const NewClaim = () => {
         claim_amount: data.claim_amount,
         description: data.description,
         supporting_documents: files
-      });
+      };
+      
+      await claimsApi.createClaim(claimDataForSubmission);
 
       toast({
         title: "Success",
         description: "Claim submitted successfully"
       });
+      
+      // Clear the draft after successful submission
+      clearDraft();
+      
       navigate('/claims');
     } catch (error) {
       console.error('Error submitting claim:', error);
       toast({
         title: "Error",
-        description: "Failed to submit claim",
+        description: error.message || "Failed to submit claim",
         variant: "destructive"
       });
     } finally {
       setIsSubmitting(false);
+      setIsConfirmDialogOpen(false);
     }
   };
 
@@ -411,7 +470,25 @@ const NewClaim = () => {
               <div className="flex justify-end">
                 <Button
                   type="button"
-                  onClick={() => setIsPreviewing(true)}
+                  onClick={() => {
+                    // Run validation
+                    const isValid = validateForm();
+                    
+                    // Log for debugging
+                    console.log('Validation result:', isValid, 'Errors:', errors);
+                    
+                    if (isValid) {
+                      setIsPreviewing(true);
+                    } else {
+                      // Display only the first error for clarity
+                      const firstError = Object.values(errors)[0];
+                      toast({
+                        title: "Validation Error",
+                        description: firstError || "Please fill in all required fields correctly before previewing.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
                 >
                   Preview
                 </Button>
@@ -428,7 +505,12 @@ const NewClaim = () => {
                 >
                   Edit
                 </Button>
-                <Button type="submit">Submit Claim</Button>
+                <Button 
+                  onClick={() => submitClaim(claimData)} 
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Submitting...' : 'Confirm & Submit'}
+                </Button>
               </div>
             </>
           )}

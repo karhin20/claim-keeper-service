@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,8 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Spinner from "@/components/ui/spinner";
-import { useNavigate } from 'react-router-dom';
-import { PlusCircle, RefreshCcw } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { PlusCircle, RefreshCcw, Search, CheckCircle, XCircle, Clock, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface Claim {
@@ -42,7 +42,7 @@ interface Claim {
   claimant_id: string;
   claim_type: string;
   claim_amount: number;
-  status: 'pending' | 'approved' | 'rejected' | 'reviewing';
+  status: 'pending' | 'approved' | 'rejected' | 'reviewing' | 'confirmed' | 'payment_pending' | 'paid';
   submitted_at: string;
   updated_at: string;
   incident_date: string;
@@ -57,7 +57,13 @@ interface Claim {
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'approved':
+      return 'bg-blue-500';
+    case 'confirmed':
       return 'bg-green-500';
+    case 'payment_pending':
+      return 'bg-purple-500';
+    case 'paid':
+      return 'bg-emerald-500';
     case 'rejected':
       return 'bg-red-500';
     case 'reviewing':
@@ -67,7 +73,23 @@ const getStatusColor = (status: string) => {
   }
 };
 
-// Add a helper function to safely format currency
+const getStatusIcon = (status: string) => {
+  switch (status) {
+    case 'approved':
+      return <CheckCircle className="h-4 w-4" />;
+    case 'payment_pending':
+      return <Clock className="h-4 w-4" />;
+    case 'paid':
+      return <CheckCircle className="h-4 w-4" />;
+    case 'rejected':
+      return <XCircle className="h-4 w-4" />;
+    case 'reviewing':
+      return <AlertCircle className="h-4 w-4" />;
+    default:
+      return <Clock className="h-4 w-4" />;
+  }
+};
+
 const formatAmount = (amount: number | null | undefined) => {
   if (typeof amount !== 'number') return '₵0.00';
   return `₵${amount.toFixed(2)}`;
@@ -76,14 +98,14 @@ const formatAmount = (amount: number | null | undefined) => {
 const ClaimsSummary = ({ claims }: { claims: Claim[] }) => {
   const totalClaims = claims.length;
   const pendingClaims = claims.filter(c => c?.status === 'pending').length;
+  const reviewingClaims = claims.filter(c => c?.status === 'reviewing').length;
   const approvedClaims = claims.filter(c => c?.status === 'approved').length;
+  const confirmedClaims = claims.filter(c => c?.status === 'confirmed').length;
+  const paidClaims = claims.filter(c => c?.status === 'paid').length;
   const rejectedClaims = claims.filter(c => c?.status === 'rejected').length;
-  const totalAmount = claims.reduce((sum, claim) => 
-    sum + (typeof claim?.claim_amount === 'number' ? claim.claim_amount : 0), 
-  0);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-7 gap-4 mb-6">
       <Card className="p-4">
         <h3 className="text-sm font-medium text-gray-500">Total Claims</h3>
         <p className="text-xl md:text-2xl font-bold">{totalClaims}</p>
@@ -93,549 +115,626 @@ const ClaimsSummary = ({ claims }: { claims: Claim[] }) => {
         <p className="text-xl md:text-2xl font-bold text-blue-600">{pendingClaims}</p>
       </Card>
       <Card className="p-4">
+        <h3 className="text-sm font-medium text-gray-500">Reviewing</h3>
+        <p className="text-xl md:text-2xl font-bold text-yellow-600">{reviewingClaims}</p>
+      </Card>
+      <Card className="p-4">
         <h3 className="text-sm font-medium text-gray-500">Approved</h3>
-        <p className="text-xl md:text-2xl font-bold text-emerald-600">{approvedClaims}</p>
+        <p className="text-xl md:text-2xl font-bold text-blue-600">{approvedClaims}</p>
+      </Card>
+      <Card className="p-4">
+        <h3 className="text-sm font-medium text-gray-500">Confirmed</h3>
+        <p className="text-xl md:text-2xl font-bold text-green-600">{confirmedClaims}</p>
+      </Card>
+      <Card className="p-4">
+        <h3 className="text-sm font-medium text-gray-500">Paid</h3>
+        <p className="text-xl md:text-2xl font-bold text-emerald-600">{paidClaims}</p>
       </Card>
       <Card className="p-4">
         <h3 className="text-sm font-medium text-gray-500">Rejected</h3>
         <p className="text-xl md:text-2xl font-bold text-red-600">{rejectedClaims}</p>
       </Card>
-      <Card className="col-span-2 md:col-span-1 p-4">
-        <h3 className="text-sm font-medium text-gray-500">Total Amount</h3>
-        <p className="text-xl md:text-2xl font-bold truncate">₵{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-      </Card>
     </div>
   );
 };
 
-type SortField = keyof Claim;
-
 const Claims = () => {
-  const navigate = useNavigate();
-  const { signOut, session } = useAuth();
   const [claims, setClaims] = useState<Claim[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
-  const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false);
-  const [otpDialogOpen, setOtpDialogOpen] = useState(false);
-  const [otpInput, setOtpInput] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [sortField, setSortField] = useState<SortField>('submitted_at');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isOtpDialogOpen, setIsOtpDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
-  const [dateRange, setDateRange] = useState({
-    start: '',
-    end: ''
-  });
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [otpPurpose, setOtpPurpose] = useState<'approval' | 'payment'>('approval');
+  const navigate = useNavigate();
+  const { session } = useAuth();
+  const [searchParams] = useSearchParams();
+  const statusFromUrl = searchParams.get('status');
+  const idFromUrl = searchParams.get('id');
 
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return 'N/A';
+  const fetchClaims = useCallback(async () => {
     try {
-      return format(new Date(dateString), 'PP');
+      setLoading(true);
+      const claimsData = await claimsApi.getClaims();
+      setClaims(claimsData || []);
     } catch (error) {
-      console.error('Date formatting error:', error);
-      return 'Invalid Date';
-    }
-  };
-
-  const filteredClaims = claims.filter(claim => {
-    const matchesSearch = searchTerm === '' || (
-      (claim.claimant_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (claim.claimant_id?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-    );
-    
-    const matchesStatus = statusFilter === 'all' || claim.status === statusFilter;
-    
-    try {
-      const claimDate = claim.submitted_at ? new Date(claim.submitted_at) : null;
-      const startDate = dateRange.start ? new Date(dateRange.start) : null;
-      const endDate = dateRange.end ? new Date(dateRange.end) : null;
-      
-      const matchesDateRange = 
-        (!startDate || (claimDate && claimDate >= startDate)) &&
-        (!endDate || (claimDate && claimDate <= endDate));
-
-      return matchesSearch && matchesStatus && matchesDateRange;
-    } catch (error) {
-      console.error('Date filtering error:', error);
-      return matchesSearch && matchesStatus;
-    }
-  });
-
-  const sortedClaims = [...filteredClaims].sort((a, b) => {
-    if (sortField === 'claim_amount') {
-      return sortDirection === 'asc' ? a[sortField] - b[sortField] : b[sortField] - a[sortField];
-    }
-    return sortDirection === 'asc' 
-      ? String(a[sortField]).localeCompare(String(b[sortField]))
-      : String(b[sortField]).localeCompare(String(a[sortField]));
-  });
-
-  const totalPages = Math.ceil(sortedClaims.length / itemsPerPage);
-
-  const fetchClaims = async () => {
-    try {
-      setIsLoading(true);
-      const data = await claimsApi.getClaims();
-      setClaims(Array.isArray(data) ? data : []);
-      toast.success('Claims refreshed successfully');
-    } catch (error) {
-      console.error('Error fetching claims:', error);
-      toast.error('Failed to fetch claims');
-      setClaims([]);
+      console.error("Failed to load claims:", error);
+      toast.error("Failed to load claims");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchClaims();
   }, []);
 
   useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Press '/' to focus search
-      if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
-        if (searchInput) searchInput.focus();
-      }
-      // Press 'Esc' to clear search and filters
-      if (e.key === 'Escape') {
-        setSearchTerm('');
-        setStatusFilter('all');
-      }
+    fetchClaims();
+  }, [fetchClaims]);
 
-      // Add pagination shortcuts
-      if (e.key === 'ArrowLeft' && !e.ctrlKey) {
-        setCurrentPage(p => Math.max(1, p - 1));
-      }
-      if (e.key === 'ArrowRight' && !e.ctrlKey) {
-        setCurrentPage(p => Math.min(totalPages, p + 1));
-      }
+  useEffect(() => {
+    if (statusFromUrl && ['pending', 'approved', 'reviewing', 'confirmed', 'rejected', 'payment_pending', 'paid'].includes(statusFromUrl)) {
+      setStatusFilter(statusFromUrl);
+    }
+  }, [statusFromUrl]);
 
-      // Add export shortcut
-      if (e.key === 'e' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        exportToCsv();
+  useEffect(() => {
+    if (idFromUrl && claims.length > 0) {
+      const claim = claims.find(c => c.id === idFromUrl);
+      if (claim) {
+        setSelectedClaim(claim);
+        setIsDetailOpen(true);
       }
-    };
+    }
+  }, [idFromUrl, claims]);
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [currentPage, totalPages, sortedClaims.length]);
-
-  const handleStatusUpdate = async (id: string, newStatus: 'pending' | 'approved' | 'rejected' | 'reviewing') => {
+  const handleStatusUpdate = async (id: string, status: string) => {
     try {
-      await claimsApi.updateClaim(id, { status: newStatus });
-      toast.success(`Claim ${newStatus} successfully.`);
+      setClaims(prevClaims => 
+        prevClaims.map(claim => 
+          claim.id === id ? { ...claim, status: status as any } : claim
+        )
+      );
+      
+      if (selectedClaim && selectedClaim.id === id) {
+        setSelectedClaim(prev => prev ? { ...prev, status: status as any } : null);
+      }
+      
+      if (status === 'pending') {
+        setIsDetailOpen(false);
+      }
+      
+      await claimsApi.updateClaim(id, { status });
+      
+      toast.success(`Claim ${status.replace('_', ' ')}`);
+      
       fetchClaims();
-      setIsApprovalDialogOpen(false);
     } catch (error) {
-      console.error('Error updating claim:', error);
-      toast.error("Failed to update claim status.");
+      toast.error("Failed to update claim status");
+      fetchClaims();
     }
   };
 
-  const handleApprovalRequest = async (id: string) => {
+  const handleReturnToPending = async (id: string) => {
     try {
-      // Ensure we have a valid session and ID
-      if (!session) {
-        toast.error('Authentication required');
-        navigate('/login');
-        return;
-      }
-
-      if (!id || typeof id !== 'string') {
-        toast.error('Invalid claim ID');
-        return;
-      }
-
-      // Find the claim by its database ID (UUID)
-      const claim = claims.find(c => c.id === id);
-      if (!claim) {
-        toast.error('Claim not found');
-        return;
-      }
-
-      setSelectedClaim(claim);
+      setClaims(prevClaims => 
+        prevClaims.map(claim => 
+          claim.id === id ? { ...claim, status: 'pending' } : claim
+        )
+      );
       
-      // Send request to backend API using the UUID
+      if (selectedClaim && selectedClaim.id === id) {
+        setSelectedClaim(prev => prev ? { ...prev, status: 'pending' } : null);
+      }
+      
+      setIsDetailOpen(false);
+      
+      await claimsApi.updateClaim(id, { status: 'pending' });
+      
+      toast.success("Claim returned to pending status");
+      
+      fetchClaims();
+    } catch (error) {
+      toast.error("Failed to update claim status");
+      fetchClaims();
+    }
+  };
+
+  const handleApproveAndGenerateOTP = async (id: string) => {
+    try {
+      toast.loading("Approving claim and generating verification code...");
+      
       const response = await claimsApi.generateApprovalOTP(id);
       
-      if (response.message) {
-        toast.success(response.message);
-        setOtpDialogOpen(true);
-      }
-    } catch (error) {
-      console.error('Error generating OTP:', error);
-      if (error.message?.includes('Authentication')) {
-        navigate('/login');
+      toast.dismiss();
+      
+      if (response.otp && import.meta.env.DEV) {
+        toast.success("Claim approved and verification code generated", {
+          description: `Development OTP: ${response.otp}`
+        });
       } else {
-        toast.error(error.message || 'Failed to generate verification code');
+        toast.success("Claim approved and verification code sent to claimant");
       }
+      
+      setClaims(prevClaims => 
+        prevClaims.map(claim => 
+          claim.id === id ? { ...claim, status: 'approved' } : claim
+        )
+      );
+      
+      if (selectedClaim && selectedClaim.id === id) {
+        setSelectedClaim(prev => prev ? { ...prev, status: 'approved' } : null);
+      }
+      
+      setIsDetailOpen(false);
+      
+      fetchClaims();
+    } catch (error: any) {
+      toast.dismiss();
+      toast.error("Failed to approve claim", {
+        description: error.message || "Please try again"
+      });
     }
+  };
+
+  const handleVerifyClaim = async (id: string) => {
+    setSelectedClaim(claims.find(claim => claim.id === id) || null);
+    setIsOtpDialogOpen(true);
   };
 
   const handleOTPVerification = async (id: string) => {
     try {
+      toast.loading("Verifying code...");
+      
       await claimsApi.verifyApprovalOTP(id, otpInput);
-      setOtpDialogOpen(false);
+      
+      toast.dismiss();
+      toast.success("Claim verified and confirmed");
+      
+      setIsOtpDialogOpen(false);
       setOtpInput('');
+      
+      setClaims(prevClaims => 
+        prevClaims.map(claim => 
+          claim.id === id ? { ...claim, status: 'confirmed' } : claim
+        )
+      );
+      
+      if (selectedClaim && selectedClaim.id === id) {
+        setSelectedClaim(prev => prev ? { ...prev, status: 'confirmed' } : null);
+      }
+      
+      setIsDetailOpen(false);
+      
       fetchClaims();
-      toast.success("Claim approved successfully");
-    } catch (error) {
-      console.error('Error verifying OTP:', error);
-      toast.error("Invalid OTP. Please try again");
+    } catch (error: any) {
+      toast.dismiss();
+      toast.error("Verification failed", {
+        description: error.message || "Invalid verification code"
+      });
     }
   };
 
-  const toggleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
+  const handleInitiatePayment = (claim: Claim) => {
+    setSelectedClaim(claim);
+    setIsPaymentDialogOpen(true);
   };
 
-  const exportToCsv = () => {
-    const headers = ['Claimant Name', 'ID', 'Type', 'Amount', 'Status', 'Submitted Date'];
-    const csvData = claims.map(claim => [
-      claim.claimant_name,
-      claim.claimant_id,
-      claim.claim_type,
-      claim.claim_amount,
-      claim.status,
-      new Date(claim.submitted_at).toLocaleDateString()
-    ]);
-
-    const csvContent = [headers, ...csvData]
-      .map(row => row.join(','))
-      .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `claims-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
-
-  const paginatedClaims = sortedClaims.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const ClaimDetailsDialog = ({ claim }: { claim: Claim }) => (
-    <DialogContent className="max-w-3xl">
-      <DialogHeader>
-        <DialogTitle>Claim Details</DialogTitle>
-        <DialogDescription>
-          Submitted on {formatDate(claim.submitted_at)}
-        </DialogDescription>
-      </DialogHeader>
-      <div className="grid grid-cols-2 gap-4 py-4">
-        <div>
-          <h4 className="font-semibold">Claimant Name</h4>
-          <p>{claim.claimant_name}</p>
-        </div>
-        <div>
-          <h4 className="font-semibold">Claimant ID</h4>
-          <p>{claim.claimant_id}</p>
-        </div>
-        <div>
-          <h4 className="font-semibold">Email</h4>
-          <p>{claim.email}</p>
-        </div>
-        <div>
-          <h4 className="font-semibold">Phone</h4>
-          <p>{claim.phone}</p>
-        </div>
-        <div className="col-span-2">
-          <h4 className="font-semibold">Address</h4>
-          <p>{claim.address}</p>
-        </div>
-        <div>
-          <h4 className="font-semibold">Incident Date</h4>
-          <p>{formatDate(claim.incident_date)}</p>
-        </div>
-        <div>
-          <h4 className="font-semibold">Incident Location</h4>
-          <p>{claim.incident_location}</p>
-        </div>
-        <div>
-          <h4 className="font-semibold">Claim Type</h4>
-          <p className="capitalize">{claim.claim_type}</p>
-        </div>
-        <div>
-          <h4 className="font-semibold">Claim Amount</h4>
-          <p>{formatAmount(claim.claim_amount)}</p>
-        </div>
-        <div className="col-span-2">
-          <h4 className="font-semibold">Description</h4>
-          <p>{claim.description}</p>
-        </div>
-        {claim.supporting_documents && claim.supporting_documents.length > 0 && (
-          <div className="col-span-2">
-            <h4 className="font-semibold">Supporting Documents</h4>
-            <ul className="list-disc list-inside">
-              {claim.supporting_documents.map((doc, index) => (
-                <li key={index}>{doc.name}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-      <DialogFooter>
-        {claim.status === 'pending' && (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSelectedClaim(claim);
-                setIsRejectDialogOpen(true);
-              }}
-            >
-              Reject
-            </Button>
-            <Button
-              onClick={() => {
-                setSelectedClaim(claim);
-                setIsApprovalDialogOpen(true);
-              }}
-            >
-              Approve
-            </Button>
-          </div>
-        )}
-      </DialogFooter>
-    </DialogContent>
-  );
-
-  const handleSignOut = async () => {
+  const handleProcessPayment = async () => {
+    if (!selectedClaim) return;
+    
     try {
-      await signOut();
-      navigate('/login');
-      toast.success('Signed out successfully');
+      await handleStatusUpdate(selectedClaim.id, 'payment_pending');
+      setIsPaymentDialogOpen(false);
+      toast.success("Payment status updated. Verification required.");
     } catch (error) {
-      console.error('Sign out error:', error);
-      toast.error('Failed to sign out');
+      toast.error("Failed to process payment");
     }
   };
+
+  const handleViewDetails = (claim: Claim) => {
+    setSelectedClaim(claim);
+    setIsDetailOpen(true);
+  };
+
+  const handleResendOTP = async (id: string) => {
+    try {
+      toast.loading("Resending verification code...");
+      
+      const response = await claimsApi.generateApprovalOTP(id);
+      
+      toast.dismiss();
+      
+      if (response.otp && import.meta.env.DEV) {
+        toast.success("Verification code resent", {
+          description: `Development OTP: ${response.otp}`
+        });
+      } else {
+        toast.success("Verification code resent to claimant");
+      }
+    } catch (error: any) {
+      toast.dismiss();
+      toast.error("Failed to resend verification code", {
+        description: error.message || "Please try again"
+      });
+    }
+  };
+
+  const handleApproveForPayment = async (id: string) => {
+    try {
+      toast.loading("Processing payment...");
+      
+      setClaims(prevClaims => 
+        prevClaims.map(claim => 
+          claim.id === id ? { ...claim, status: 'payment_pending' } : claim
+        )
+      );
+      
+      if (selectedClaim && selectedClaim.id === id) {
+        setSelectedClaim(prev => prev ? { ...prev, status: 'payment_pending' } : null);
+      }
+      
+      await claimsApi.updateClaim(id, { status: 'payment_pending' });
+      
+      toast.dismiss();
+      toast.success("Claim approved for payment");
+      
+      setIsDetailOpen(false);
+      fetchClaims();
+    } catch (error: any) {
+      toast.dismiss();
+      toast.error("Failed to process payment", {
+        description: error.message || "Please try again"
+      });
+      fetchClaims();
+    }
+  };
+
+  const handleMarkAsPaid = async (id: string) => {
+    try {
+      toast.loading("Marking as paid...");
+      
+      setClaims(prevClaims => 
+        prevClaims.map(claim => 
+          claim.id === id ? { ...claim, status: 'paid' } : claim
+        )
+      );
+      
+      if (selectedClaim && selectedClaim.id === id) {
+        setSelectedClaim(prev => prev ? { ...prev, status: 'paid' } : null);
+      }
+      
+      await claimsApi.updateClaim(id, { status: 'paid' });
+      
+      try {
+        if (selectedClaim) {
+          toast.success("Payment confirmation sent to claimant");
+        }
+      } catch (notificationError) {
+        console.error("Failed to send payment notification:", notificationError);
+      }
+      
+      toast.dismiss();
+      toast.success("Payment completed successfully");
+      
+      setIsDetailOpen(false);
+      fetchClaims();
+    } catch (error: any) {
+      toast.dismiss();
+      toast.error("Failed to mark as paid", {
+        description: error.message || "Please try again"
+      });
+      fetchClaims();
+    }
+  };
+
+  const filteredClaims = claims.filter(claim => {
+    if (statusFilter !== 'all' && claim.status !== statusFilter) {
+      return false;
+    }
+    
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        claim.claimant_name.toLowerCase().includes(searchLower) ||
+        claim.claimant_id.toLowerCase().includes(searchLower) ||
+        claim.claim_type.toLowerCase().includes(searchLower) ||
+        claim.email?.toLowerCase().includes(searchLower) ||
+        claim.phone?.includes(searchTerm)
+      );
+    }
+    
+    return true;
+  });
+
+  if (!session) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p>Please log in to view claims</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8 overflow-x-auto">
-      <Card className="min-w-full">
-        <div className="p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div>
-              <h2 className="text-2xl font-bold">Claims</h2>
-              <p className="text-gray-600">Manage and track claims</p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              <Button onClick={() => navigate('/claims/new')} className="w-full sm:w-auto">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                New Claim
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={fetchClaims}
-                className="w-full sm:w-auto"
-              >
-                <RefreshCcw className="mr-2 h-4 w-4" />
-                Refresh
-              </Button>
-            </div>
-          </div>
+    <div className="container mx-auto py-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <h1 className="text-3xl font-bold">Claims Management</h1>
+        <div className="flex flex-wrap gap-2">
+          <Button 
+            variant="outline" 
+            onClick={fetchClaims}
+            className="flex items-center gap-2"
+          >
+            <RefreshCcw size={16} />
+            Refresh
+          </Button>
+          <Button 
+            onClick={() => navigate('/new-claim')}
+            className="flex items-center gap-2"
+          >
+            <PlusCircle size={16} />
+            New Claim
+          </Button>
+        </div>
+      </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="w-full sm:w-64">
-              <Select
-                value={statusFilter}
-                onValueChange={setStatusFilter}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Claims</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-full sm:w-64">
+      <ClaimsSummary claims={filteredClaims} />
+
+      <Card className="mb-6">
+        <div className="p-4 border-b flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <Label htmlFor="search" className="sr-only">Search</Label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
               <Input
-                placeholder="Search claims..."
+                id="search"
+                placeholder="Search by name, ID, email or phone..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <div className="w-full sm:w-auto flex gap-2">
-              <Input
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                className="w-full sm:w-40"
-              />
-              <Input
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                className="w-full sm:w-40"
+                className="pl-9"
               />
             </div>
           </div>
+          <div className="w-full md:w-48">
+            <Label htmlFor="status-filter" className="sr-only">Filter by Status</Label>
+            <Select
+              value={statusFilter}
+              onValueChange={setStatusFilter}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Claims</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="reviewing">Reviewing</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="payment_pending">Payment Processing</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
-          <ClaimsSummary claims={claims} />
-
+        {loading ? (
+          <div className="flex justify-center items-center p-12">
+            <Spinner size="lg" />
+          </div>
+        ) : filteredClaims.length === 0 ? (
+          <div className="text-center p-12">
+            <p className="text-gray-500">No claims found</p>
+            {searchTerm || statusFilter !== 'all' ? (
+              <Button 
+                variant="link" 
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('all');
+                }}
+              >
+                Clear filters
+              </Button>
+            ) : null}
+          </div>
+        ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead onClick={() => toggleSort('claimant_name')} className="cursor-pointer">
-                  Claimant {sortField === 'claimant_name' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </TableHead>
-                <TableHead onClick={() => toggleSort('claim_type')} className="cursor-pointer">
-                  Type {sortField === 'claim_type' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </TableHead>
-                <TableHead onClick={() => toggleSort('claim_amount')} className="cursor-pointer">
-                  Amount {sortField === 'claim_amount' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </TableHead>
-                <TableHead onClick={() => toggleSort('submitted_at')} className="cursor-pointer">
-                  Submitted Date {sortField === 'submitted_at' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </TableHead>
-                <TableHead onClick={() => toggleSort('status')} className="cursor-pointer">
-                  Status {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </TableHead>
+                <TableHead>Claimant</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Submitted</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-24">
-                    <div className="flex flex-col items-center justify-center">
-                      <Spinner />
-                      <p className="mt-2 text-sm text-gray-500">Loading claims...</p>
+              {filteredClaims.map((claim) => (
+                <TableRow key={claim.id}>
+                  <TableCell className="font-medium">
+                    {claim.claimant_name}
+                    <div className="text-xs text-gray-500">{claim.claimant_id}</div>
+                  </TableCell>
+                  <TableCell>{claim.claim_type}</TableCell>
+                  <TableCell>{formatAmount(claim.claim_amount)}</TableCell>
+                  <TableCell>
+                    <Badge className={`flex items-center gap-1 ${getStatusColor(claim.status)}`}>
+                      {getStatusIcon(claim.status)}
+                      <span className="capitalize">{claim.status.replace('_', ' ')}</span>
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{format(new Date(claim.submitted_at), 'MMM d, yyyy')}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewDetails(claim)}
+                      >
+                        View Details
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : sortedClaims.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
-                    <div className="flex flex-col items-center justify-center text-gray-500">
-                      <p className="text-lg font-medium">No claims found</p>
-                      <p className="text-sm">Try adjusting your search or filter criteria</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginatedClaims.map((claim) => (
-                  <TableRow key={claim.id}>
-                    <TableCell>{claim.claimant_name}</TableCell>
-                    <TableCell className="capitalize">{claim.claim_type}</TableCell>
-                    <TableCell>{formatAmount(claim.claim_amount)}</TableCell>
-                    <TableCell>{formatDate(claim.submitted_at)}</TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(claim.status)}>
-                        {claim.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            View Details
-                          </Button>
-                        </DialogTrigger>
-                        <ClaimDetailsDialog claim={claim} />
-                      </Dialog>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
+              ))}
             </TableBody>
           </Table>
-          <div className="flex justify-between items-center mt-4">
-            <div className="text-sm text-gray-500">
-              Showing {Math.min(sortedClaims.length, (currentPage - 1) * itemsPerPage + 1)} to{' '}
-              {Math.min(sortedClaims.length, currentPage * itemsPerPage)} of{' '}
-              {sortedClaims.length} claims
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        </div>
+        )}
       </Card>
 
-      <Dialog open={isApprovalDialogOpen} onOpenChange={setIsApprovalDialogOpen}>
-        <DialogContent>
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Approve Claim</DialogTitle>
+            <DialogTitle>Claim Details</DialogTitle>
             <DialogDescription>
-              A verification code will be sent to the claimant's contact details.
+              View and manage claim information
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsApprovalDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (selectedClaim?.id) {
-                  handleApprovalRequest(selectedClaim.id);
-                  setIsApprovalDialogOpen(false);
-                } else {
-                  toast.error('No claim selected');
-                }
-              }}
-            >
-              Send Verification Code
-            </Button>
-          </DialogFooter>
+          {selectedClaim && (
+            <>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedClaim.claimant_name}</h3>
+                  <p className="text-sm text-gray-500">ID: {selectedClaim.claimant_id}</p>
+                </div>
+                <Badge className={`${getStatusColor(selectedClaim.status)} flex items-center gap-1`}>
+                  {getStatusIcon(selectedClaim.status)}
+                  <span className="capitalize">{selectedClaim.status.replace('_', ' ')}</span>
+                </Badge>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div className="space-y-2">
+                  <h3 className="font-semibold">Claim Information</h3>
+                  <p><span className="font-medium">Type:</span> {selectedClaim.claim_type}</p>
+                  <p><span className="font-medium">Amount:</span> {formatAmount(selectedClaim.claim_amount)}</p>
+                  <p><span className="font-medium">Submitted:</span> {format(new Date(selectedClaim.submitted_at), 'PPP')}</p>
+                  <p><span className="font-medium">Last Updated:</span> {format(new Date(selectedClaim.updated_at), 'PPP')}</p>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-semibold">Contact Information</h3>
+                  <p><span className="font-medium">Email:</span> {selectedClaim.email}</p>
+                  <p><span className="font-medium">Phone:</span> {selectedClaim.phone}</p>
+                  <p><span className="font-medium">Address:</span> {selectedClaim.address}</p>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-semibold">Incident Details</h3>
+                  <p><span className="font-medium">Date:</span> {format(new Date(selectedClaim.incident_date), 'PPP')}</p>
+                  <p><span className="font-medium">Location:</span> {selectedClaim.incident_location}</p>
+                </div>
+                <div className="col-span-1 md:col-span-2 space-y-2">
+                  <h3 className="font-semibold">Description</h3>
+                  <p>{selectedClaim.description}</p>
+                </div>
+                {selectedClaim.supporting_documents && selectedClaim.supporting_documents.length > 0 && (
+                  <div className="col-span-1 md:col-span-2 space-y-2">
+                    <h3 className="font-semibold">Supporting Documents</h3>
+                    <ul className="list-disc pl-5">
+                      {selectedClaim.supporting_documents.map((doc, index) => (
+                        <li key={index}>{doc.name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                {selectedClaim.status === 'pending' && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleStatusUpdate(selectedClaim.id, 'reviewing')}
+                    >
+                      Mark as Reviewing
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => setIsRejectDialogOpen(true)}
+                    >
+                      Reject
+                    </Button>
+                    <Button
+                      onClick={() => handleApproveAndGenerateOTP(selectedClaim.id)}
+                    >
+                      Approve
+                    </Button>
+                  </>
+                )}
+                {selectedClaim.status === 'reviewing' && (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-1"
+                      onClick={() => handleReturnToPending(selectedClaim.id)}
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                      Return to Pending
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => setIsRejectDialogOpen(true)}
+                    >
+                      Reject
+                    </Button>
+                    <Button
+                      onClick={() => handleApproveAndGenerateOTP(selectedClaim.id)}
+                    >
+                      Approve
+                    </Button>
+                  </>
+                )}
+                {selectedClaim.status === 'approved' && (
+                  <div className="flex flex-col sm:flex-row gap-2 w-full">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleResendOTP(selectedClaim.id)}
+                    >
+                      Resend OTP
+                    </Button>
+                    <Button
+                      onClick={() => handleVerifyClaim(selectedClaim.id)}
+                    >
+                      Verify OTP
+                    </Button>
+                  </div>
+                )}
+                {selectedClaim.status === 'confirmed' && (
+                  <Button
+                    onClick={() => handleApproveForPayment(selectedClaim.id)}
+                  >
+                    Approve for Payment
+                  </Button>
+                )}
+                {selectedClaim.status === 'payment_pending' && (
+                  <Button
+                    onClick={() => handleMarkAsPaid(selectedClaim.id)}
+                  >
+                    Mark as Paid
+                  </Button>
+                )}
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
-      <Dialog open={otpDialogOpen} onOpenChange={setOtpDialogOpen}>
+      <Dialog open={isOtpDialogOpen} onOpenChange={setIsOtpDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Enter Approval OTP</DialogTitle>
+            <DialogTitle>Verify Claim</DialogTitle>
             <DialogDescription>
-              Please enter the OTP sent to verify claim approval.
+              Enter the verification code provided by the claimant to confirm the claim.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="otp">OTP</Label>
+              <Label htmlFor="otp">Verification Code</Label>
               <Input
                 id="otp"
                 value={otpInput}
                 onChange={(e) => setOtpInput(e.target.value)}
-                placeholder="Enter 6-digit OTP"
+                placeholder="Enter 6-digit code"
               />
             </div>
           </div>
@@ -643,7 +742,7 @@ const Claims = () => {
             <Button
               variant="outline"
               onClick={() => {
-                setOtpDialogOpen(false);
+                setIsOtpDialogOpen(false);
                 setOtpInput('');
               }}
             >
@@ -652,7 +751,52 @@ const Claims = () => {
             <Button
               onClick={() => selectedClaim && handleOTPVerification(selectedClaim.id)}
             >
-              Verify & Approve
+              Verify & Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Process Payment</DialogTitle>
+            <DialogDescription>
+              Confirm payment processing for this claim.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedClaim && (
+            <div className="py-4">
+              <div className="flex justify-between mb-2">
+                <span className="font-medium">Claimant:</span>
+                <span>{selectedClaim.claimant_name}</span>
+              </div>
+              <div className="flex justify-between mb-2">
+                <span className="font-medium">Claim Type:</span>
+                <span>{selectedClaim.claim_type}</span>
+              </div>
+              <div className="flex justify-between mb-2">
+                <span className="font-medium">Amount:</span>
+                <span className="font-bold">{formatAmount(selectedClaim.claim_amount)}</span>
+              </div>
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-sm text-yellow-800">
+                  After confirming, you'll need to verify the payment with an OTP.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsPaymentDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleProcessPayment}
+            >
+              Confirm & Process
             </Button>
           </DialogFooter>
         </DialogContent>

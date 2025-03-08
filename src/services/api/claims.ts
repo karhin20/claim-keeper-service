@@ -1,4 +1,5 @@
 import { Claim } from '@/types/claim';
+import { toast } from 'sonner';
 
 const API_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'https://claims-backends.vercel.app/api';
 
@@ -25,49 +26,82 @@ const fetchOptions: RequestInit = {
 export const claimsApi = {
   getClaims: async (): Promise<Claim[]> => {
     try {
-      console.log('Fetching claims from:', `${API_URL}/claims`);
       const response = await fetch(`${API_URL}/claims`, {
         ...fetchOptions,
         method: 'GET'
       });
 
-      // Log response details for debugging
-      console.log('Claims response status:', response.status);
-      console.log('Claims response headers:', Object.fromEntries(response.headers));
-
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to fetch claims');
+        throw new Error('Failed to fetch claims');
       }
 
       const data = await response.json();
-      return data.claims;
+      return data;
     } catch (error) {
-      console.error('Get claims error:', error);
-      throw error;
+      console.error("Failed to fetch claims:", error);
+      // Return empty array on error
+      return [];
     }
   },
 
   createClaim: async (claimData: Omit<Claim, 'id' | 'status' | 'submitted_at' | 'updated_at'>) => {
     try {
-      console.log('Sending claim data to API:', claimData);
-      console.log('API URL:', `${API_URL}/claims`);
+      // Check if we have files to upload
+      const hasFiles = claimData.supporting_documents && 
+                       Array.isArray(claimData.supporting_documents) && 
+                       claimData.supporting_documents.length > 0;
       
-      const response = await fetch(`${API_URL}/claims`, {
-        ...fetchOptions,
-        method: 'POST',
-        body: JSON.stringify(claimData)
-      });
+      // If files exist, use FormData approach
+      if (hasFiles) {
+        const formData = new FormData();
+        
+        // Add all claim data as JSON in a single field
+        const claimDataWithoutFiles = { ...claimData };
+        delete claimDataWithoutFiles.supporting_documents;
+        formData.append('claimData', JSON.stringify(claimDataWithoutFiles));
+        
+        // Add each file separately
+        if (claimData.supporting_documents) {
+          claimData.supporting_documents.forEach((file, index) => {
+            formData.append(`file${index}`, file);
+          });
+        }
+        
+        // Send with multipart content type but without Content-Type header
+        // to let the browser set it correctly with boundary
+        const formDataOptions = {
+          ...fetchOptions,
+          method: 'POST',
+          body: formData,
+          headers: {
+            // Remove Content-Type to let browser set it with boundary
+            'Accept': 'application/json'
+          }
+        };
+        
+        const response = await fetch(`${API_URL}/claims`, formDataOptions);
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to create claim');
+        }
+        
+        return response.json();
+      } else {
+        // No files, use regular JSON request
+        const response = await fetch(`${API_URL}/claims`, {
+          ...fetchOptions,
+          method: 'POST',
+          body: JSON.stringify(claimData)
+        });
 
-      console.log('Claim submission response:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('API error response:', error);
-        throw new Error(error.message || 'Failed to create claim');
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to create claim');
+        }
+
+        return response.json();
       }
-
-      return response.json();
     } catch (error) {
       console.error('Create claim error:', error);
       throw error;
@@ -106,7 +140,18 @@ export const claimsApi = {
         throw new Error(error.message || 'Failed to generate OTP');
       }
 
-      return response.json();
+      const data = await response.json();
+      
+      // If we're in development and the backend sent the OTP directly
+      // (this is our fallback for when email sending fails)
+      if (data.otp && import.meta.env.DEV) {
+        // Show the OTP in a toast for easy testing
+        toast.info(`Development OTP: ${data.otp}`, {
+          duration: 10000, // Show for 10 seconds
+        });
+      }
+
+      return data;
     } catch (error) {
       console.error('Generate OTP error:', error);
       throw error;
@@ -115,6 +160,8 @@ export const claimsApi = {
 
   verifyApprovalOTP: async (id: string, otp: string) => {
     try {
+      // Skip the pre-check for now since the endpoint is not working
+      // Just proceed with verification directly
       const response = await fetch(`${API_URL}/claims/${id}/verify-otp`, {
         ...fetchOptions,
         method: 'POST',
@@ -141,14 +188,18 @@ export const claimsApi = {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to fetch stats');
+        throw new Error('Failed to fetch stats');
       }
 
-      return response.json();
+      return await response.json();
     } catch (error) {
-      console.error('Get stats error:', error);
-      throw error;
+      // Return default stats on error
+      return {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0
+      };
     }
   },
 
@@ -160,14 +211,13 @@ export const claimsApi = {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to fetch recent activity');
+        throw new Error('Failed to fetch recent activity');
       }
 
-      return response.json();
+      return await response.json();
     } catch (error) {
-      console.error('Get recent activity error:', error);
-      throw error;
+      // Return empty array on error
+      return [];
     }
   }
 }; 
