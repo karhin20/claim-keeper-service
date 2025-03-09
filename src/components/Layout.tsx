@@ -1,12 +1,18 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { UserMenu } from "./UserMenu";
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 interface LayoutProps {
   children: ReactNode;
 }
 
 export function Layout({ children }: LayoutProps) {
+  const location = useLocation();
+  
+  useEffect(() => {
+    console.log("Layout mounted with path:", location.pathname);
+  }, [location.pathname]);
+  
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b bg-white">

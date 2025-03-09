@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Spinner from "@/components/ui/spinner";
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { PlusCircle, RefreshCcw, Search, CheckCircle, XCircle, Clock, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -139,6 +139,11 @@ const ClaimsSummary = ({ claims }: { claims: Claim[] }) => {
 };
 
 const Claims = () => {
+  const location = useLocation();
+  
+  // Debug log
+  console.log("Claims page mounted at path:", location.pathname);
+  
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
@@ -155,21 +160,55 @@ const Claims = () => {
   const [searchParams] = useSearchParams();
   const statusFromUrl = searchParams.get('status');
   const idFromUrl = searchParams.get('id');
+  const [retryCount, setRetryCount] = useState(0);
 
   const fetchClaims = useCallback(async () => {
     try {
+      console.log("Fetching claims from API...");
       setLoading(true);
-      const claimsData = await claimsApi.getClaims();
-      setClaims(claimsData || []);
+      
+      // Use the proper API URL construction
+      const API_URL = import.meta.env.VITE_API_URL ? 
+        `${import.meta.env.VITE_API_URL}/api` : 
+        'https://claims-backends.vercel.app/api';
+      
+      console.log(`Fetching from: ${API_URL}/claims`);
+      
+      const response = await fetch(`${API_URL}/claims`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        method: 'GET'
+      });
+      
+      console.log('Claims API direct response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch claims: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log("Claims data received directly:", data);
+      
+      // Check if data has a claims property and use it, otherwise try to use data directly
+      const claimsData = data.claims || data;
+      console.log("Processed claims data:", claimsData);
+      
+      // Ensure we're setting valid data
+      setClaims(Array.isArray(claimsData) ? claimsData : []);
     } catch (error) {
-      console.error("Failed to load claims:", error);
-      toast.error("Failed to load claims");
+      console.error("Failed to fetch claims:", error);
+      toast.error("Failed to load claims. Please refresh the page.");
+      setClaims([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    console.log("Claims component mounted, fetching data...");
     fetchClaims();
   }, [fetchClaims]);
 
@@ -188,6 +227,19 @@ const Claims = () => {
       }
     }
   }, [idFromUrl, claims]);
+
+  useEffect(() => {
+    // Retry fetch up to 3 times if we have no data
+    if (!loading && claims.length === 0 && retryCount < 3) {
+      const timer = setTimeout(() => {
+        console.log(`Retrying claims fetch (${retryCount + 1}/3)...`);
+        setRetryCount(prev => prev + 1);
+        fetchClaims();
+      }, 2000); // 2 second delay between retries
+      
+      return () => clearTimeout(timer);
+    }
+  }, [claims.length, loading, retryCount, fetchClaims]);
 
   const handleStatusUpdate = async (id: string, status: string) => {
     try {
@@ -243,38 +295,42 @@ const Claims = () => {
 
   const handleApproveAndGenerateOTP = async (id: string) => {
     try {
-      toast.loading("Approving claim and generating verification code...");
+      // First update the status to approved
+      await claimsApi.updateClaim(id, { status: 'approved' });
       
-      const response = await claimsApi.generateApprovalOTP(id);
-      
-      toast.dismiss();
-      
-      if (response.otp && import.meta.env.DEV) {
-        toast.success("Claim approved and verification code generated", {
-          description: `Development OTP: ${response.otp}`
-        });
-      } else {
+      try {
+        // Try to generate OTP (this may fail if email server is unreachable)
+        await claimsApi.generateApprovalOTP(id);
         toast.success("Claim approved and verification code sent to claimant");
+      } catch (otpError: any) {
+        console.error("Failed to send OTP email:", otpError);
+        
+        // Check if it's an email connection error
+        if (otpError.message?.includes('ECONNREFUSED') || 
+            otpError.message?.includes('email') || 
+            otpError.message?.includes('smtp')) {
+          
+          toast.warning(
+            "Claim approved, but we couldn't send the verification email. " +
+            "Please note the claim ID and ask the claimant to contact support."
+          );
+          
+          // Generate a fake OTP for testing purposes in development
+          if (import.meta.env.DEV) {
+            const testOTP = Math.floor(100000 + Math.random() * 900000).toString();
+            toast.info(`Development test OTP: ${testOTP}`, { duration: 15000 });
+          }
+        } else {
+          toast.error("Failed to generate verification code, but claim was approved");
+        }
       }
       
-      setClaims(prevClaims => 
-        prevClaims.map(claim => 
-          claim.id === id ? { ...claim, status: 'approved' } : claim
-        )
-      );
-      
-      if (selectedClaim && selectedClaim.id === id) {
-        setSelectedClaim(prev => prev ? { ...prev, status: 'approved' } : null);
-      }
-      
-      setIsDetailOpen(false);
-      
+      // Refresh the claims list to show updated status
       fetchClaims();
-    } catch (error: any) {
-      toast.dismiss();
-      toast.error("Failed to approve claim", {
-        description: error.message || "Please try again"
-      });
+      
+    } catch (error) {
+      console.error("Failed to approve claim:", error);
+      toast.error("Failed to approve claim");
     }
   };
 
@@ -448,6 +504,58 @@ const Claims = () => {
     return true;
   });
 
+  // Add a function to create a test claim
+  const createTestClaim = async () => {
+    try {
+      setLoading(true);
+      toast.info("Creating a test claim...");
+      
+      const testClaimData = {
+        claimant_name: "Test Claimant",
+        claimant_id: `TEST-${Math.floor(Math.random() * 10000)}`,
+        claim_type: "Medical",
+        claim_amount: 1000 + Math.floor(Math.random() * 5000),
+        incident_date: new Date().toISOString().split('T')[0],
+        incident_location: "Test Location",
+        description: "This is a test claim created for demonstration purposes.",
+        email: "test@example.com",
+        phone: "+233 1234 5678",
+        address: "123 Test Street, Accra",
+      };
+      
+      const API_URL = import.meta.env.VITE_API_URL ? 
+        `${import.meta.env.VITE_API_URL}/api` : 
+        'https://claims-backends.vercel.app/api';
+      
+      console.log("Creating test claim with:", testClaimData);
+      
+      const response = await fetch(`${API_URL}/claims`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(testClaimData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to create test claim: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log("Test claim created:", result);
+      
+      toast.success("Test claim created successfully!");
+      fetchClaims(); // Refresh the claims list
+    } catch (error) {
+      console.error("Failed to create test claim:", error);
+      toast.error("Failed to create test claim. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!session) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -521,22 +629,30 @@ const Claims = () => {
 
         {loading ? (
           <div className="flex justify-center items-center p-12">
-            <Spinner size="lg" />
-            </div>
-        ) : filteredClaims.length === 0 ? (
-          <div className="text-center p-12">
-            <p className="text-gray-500">No claims found</p>
-            {searchTerm || statusFilter !== 'all' ? (
+            <Spinner className="h-8 w-8" />
+          </div>
+        ) : claims.length === 0 ? (
+          <div className="text-center p-12 space-y-4">
+            <p className="text-lg text-gray-500">No claims found in the system.</p>
+            <p className="text-sm text-gray-400">
+              You can create a test claim for demonstration purposes.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
               <Button 
-                variant="link" 
-                onClick={() => {
-                  setSearchTerm('');
-                  setStatusFilter('all');
-                }}
+                onClick={() => navigate('/new-claim')}
+                className="mt-4"
               >
-                Clear filters
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create New Claim
               </Button>
-            ) : null}
+              <Button 
+                onClick={createTestClaim}
+                variant="outline"
+                className="mt-4"
+              >
+                Generate Test Claim
+              </Button>
+            </div>
           </div>
         ) : (
           <Table>

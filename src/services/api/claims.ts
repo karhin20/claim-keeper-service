@@ -10,6 +10,10 @@ interface ClaimsStats {
   rejected: number;
 }
 
+// Update the Claim interface to match the backend expectations
+// Use 'type' instead of 'interface' for a union type
+type ClaimStatusType = 'pending' | 'approved' | 'rejected' | 'reviewing' | 'confirmed' | 'payment_pending' | 'paid';
+
 // Enhanced fetch options with explicit cookie handling
 const fetchOptions: RequestInit = {
   credentials: 'include',
@@ -26,23 +30,38 @@ const fetchOptions: RequestInit = {
 export const claimsApi = {
   getClaims: async (): Promise<Claim[]> => {
     try {
+      console.log(`Making direct API request to ${API_URL}/claims`);
+      
       const response = await fetch(`${API_URL}/claims`, {
         ...fetchOptions,
-        method: 'GET'
+        method: 'GET',
+        // Add specific cache control headers
+        headers: {
+          ...fetchOptions.headers,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch claims');
-      }
-
-      const data = await response.json();
       
-      // Ensure we always return an array
+      console.log(`Claims API status: ${response.status}`);
+      
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+      
+      // Use safer JSON parsing with error handling
+      const responseText = await response.text();
+      console.log(`Raw response (first 100 chars): ${responseText.substring(0, 100)}...`);
+      
+      const data = JSON.parse(responseText);
+      console.log(`Parsed ${Array.isArray(data) ? data.length : 0} claims`);
+      
+      // Always return an array
       return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error("Failed to fetch claims:", error);
-      // Return empty array on error
-      return [];
+      throw error; // Let the component handle the error
     }
   },
 
@@ -110,12 +129,12 @@ export const claimsApi = {
     }
   },
 
-  updateClaim: async (id: string, updates: Partial<Claim>) => {
+  updateClaim: async (id: string, data: { status?: ClaimStatusType; [key: string]: any }) => {
     try {
       const response = await fetch(`${API_URL}/claims/${id}`, {
         ...fetchOptions,
-        method: 'PUT',
-        body: JSON.stringify(updates)
+        method: 'PATCH',
+        body: JSON.stringify(data)
       });
 
       if (!response.ok) {
@@ -123,7 +142,7 @@ export const claimsApi = {
         throw new Error(error.message || 'Failed to update claim');
       }
 
-      return response.json();
+      return await response.json();
     } catch (error) {
       console.error('Update claim error:', error);
       throw error;
@@ -132,20 +151,23 @@ export const claimsApi = {
 
   generateApprovalOTP: async (id: string) => {
     try {
+      console.log(`Generating OTP for claim ${id}`);
       const response = await fetch(`${API_URL}/claims/${id}/generate-otp`, {
         ...fetchOptions,
         method: 'POST'
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to generate OTP');
-      }
-
       const data = await response.json();
+      console.log("OTP generation response:", data);
+      
+      if (!response.ok) {
+        // Check if we have an error message in the response
+        const errorMessage = data.message || 'Failed to generate OTP';
+        console.error("OTP generation error from API:", errorMessage);
+        throw new Error(errorMessage);
+      }
       
       // If we're in development and the backend sent the OTP directly
-      // (this is our fallback for when email sending fails)
       if (data.otp && import.meta.env.DEV) {
         // Show the OTP in a toast for easy testing
         toast.info(`Development OTP: ${data.otp}`, {
@@ -156,6 +178,19 @@ export const claimsApi = {
       return data;
     } catch (error) {
       console.error('Generate OTP error:', error);
+      
+      // Enhance error with a clearer message if it's an email error
+      if (error instanceof Error && 
+          (error.message.includes('ECONNREFUSED') || 
+           error.message.includes('email') || 
+           error.message.includes('smtp'))) {
+        const enhancedError = new Error(
+          `Email server connection failed (${error.message}). ` +
+          `The system couldn't send a verification email to the claimant.`
+        );
+        throw enhancedError;
+      }
+      
       throw error;
     }
   },

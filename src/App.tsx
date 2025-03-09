@@ -60,26 +60,36 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
   const location = useLocation();
   
+  // Debug log
+  console.log("RequireAuth at path:", location.pathname, { 
+    hasSession: !!session, 
+    isLoading: loading,
+    justLoggedOut: sessionStorage.getItem('justLoggedOut') === 'true'
+  });
+  
   // Don't redirect to login if we're already on the login page or just logged out
   const justLoggedOut = sessionStorage.getItem('justLoggedOut') === 'true' || 
                         new URLSearchParams(location.search).get('logout') === 'true';
   
   if (justLoggedOut) {
     sessionStorage.removeItem('justLoggedOut'); // Clean up
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
-  // Add a key "authenticated" to prevent re-renders when auth state doesn't change
-  return loading ? (
-    <div className="min-h-screen flex items-center justify-center">
-      <Spinner />
-    </div>
-  ) : session ? (
-    children
-  ) : (
-    // Use replace to prevent adding to history
-    <Navigate to="/login" replace />
-  );
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner />
+      </div>
+    );
+  }
+  
+  if (!session) {
+    // Use replace and state to remember where we came from
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  
+  return children;
 }
 
 function PublicOnly({ children }: { children: React.ReactNode }) {
@@ -185,13 +195,11 @@ const App = () => {
               <Route 
                 path="/claims" 
                 element={
-                  <ProtectedRoute requiredRole="admin">
-                    <ErrorBoundary>
-                      <Layout>
-                        <Claims />
-                      </Layout>
-                    </ErrorBoundary>
-                  </ProtectedRoute>
+                  <RequireAuth>
+                    <Layout>
+                      <Claims />
+                    </Layout>
+                  </RequireAuth>
                 } 
               />
               <Route 
