@@ -21,10 +21,7 @@ const fetchOptions: RequestInit = {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
-  // Ensure cookies are sent even in cross-origin requests
-  mode: 'cors',
-  // Add cache control to prevent caching of auth responses
-  cache: 'no-cache'
+  mode: 'cors'
 };
 
 export const claimsApi = {
@@ -32,16 +29,14 @@ export const claimsApi = {
     try {
       console.log(`Making direct API request to ${API_URL}/claims`);
       
+      // Remove all custom cache control headers that are causing CORS issues
       const response = await fetch(`${API_URL}/claims`, {
-        ...fetchOptions,
-        method: 'GET',
-        // Add specific cache control headers
+        credentials: 'include',
         headers: {
-          ...fetchOptions.headers,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        method: 'GET'
       });
       
       console.log(`Claims API status: ${response.status}`);
@@ -50,15 +45,14 @@ export const claimsApi = {
         throw new Error(`Request failed with status ${response.status}`);
       }
       
-      // Use safer JSON parsing with error handling
-      const responseText = await response.text();
-      console.log(`Raw response (first 100 chars): ${responseText.substring(0, 100)}...`);
+      const data = await response.json();
+      console.log(`Claims data received:`, data);
       
-      const data = JSON.parse(responseText);
-      console.log(`Parsed ${Array.isArray(data) ? data.length : 0} claims`);
+      // Handle both data formats (direct array or {claims: [...]})
+      const claimsData = data.claims || data;
       
       // Always return an array
-      return Array.isArray(data) ? data : [];
+      return Array.isArray(claimsData) ? claimsData : [];
     } catch (error) {
       console.error("Failed to fetch claims:", error);
       throw error; // Let the component handle the error

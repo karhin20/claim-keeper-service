@@ -174,25 +174,26 @@ const Claims = () => {
       
       console.log(`Fetching from: ${API_URL}/claims`);
       
+      // Simplify headers to avoid CORS issues
       const response = await fetch(`${API_URL}/claims`, {
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         method: 'GET'
       });
       
-      console.log('Claims API direct response status:', response.status);
+      console.log('Claims API response status:', response.status);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch claims: ${response.status}`);
       }
       
       const data = await response.json();
-      console.log("Claims data received directly:", data);
+      console.log("Claims data received:", data);
       
-      // Check if data has a claims property and use it, otherwise try to use data directly
+      // Check if data has a claims property and use it
       const claimsData = data.claims || data;
       console.log("Processed claims data:", claimsData);
       
